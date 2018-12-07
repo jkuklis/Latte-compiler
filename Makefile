@@ -1,6 +1,6 @@
 all: compiler
 
-true_all: bnfc_download latteM compiler rights
+true_all: latteM compiler rights
 
 bnfc_download:
 	wget https://github.com/mlazowik/bnfc/archive/176-source-position.zip
@@ -19,7 +19,7 @@ latteM:
 	$(MAKE) -C latte
 
 compiler:
-	ghc src/Main.hs -o build/Compiler -odir build -isrc -iinstant
+	ghc src/Main.hs -o build/Compiler -odir build -isrc -ilatte
 	mv src/*.hi build
 
 rights:
@@ -29,6 +29,10 @@ rights:
 
 clean:
 	rm -f latte/*
+	rm -f build/*
+	rm -f output/*
+
+clean_build:
 	rm -f build/*
 
 .PHONY: all

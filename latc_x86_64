@@ -1,27 +1,35 @@
 #!/bin/bash
 
-filePath=$1
+if [ -z "$1" ]; then
+    echo "Usage: ./latc_x86_64 [file_name]"
+    exit 1
+fi
 
+filePath=$1
 fileDir=$(dirname "${filePath}")
 
 if [ -z "$fileDir" ]; then
-
     fileDir = "."
-
 fi
 
 fileNameExt=$(basename "${filePath}")
-
 fileName="${fileNameExt%.*}"
-
 fileBase="${fileDir}/${fileName}"
-
 assemblyFile="${fileBase}.s"
-
 execFile="${fileBase}"
 
+if [ -n "$2" ]; then
+    assemblyFile="output/${fileName}.s"
+    execFile="output/${fileName}"
+fi
 
+build/Compiler < $filePath # > $assemblyFile
+ret=$?
 
-build/Compiler < $filePath > $assemblyFile
+if [ $ret -ne 0 ]; then
+    exit $ret
+fi
 
-gcc $assemblyFile -o "${execFile}"
+# gcc $assemblyFile -o "${execFile}"
+
+exit 0
