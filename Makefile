@@ -1,8 +1,21 @@
-all: latteM compiler rights
+all: compiler
+
+true_all: bnfc_download latteM compiler rights
+
+bnfc_download:
+	wget https://github.com/mlazowik/bnfc/archive/176-source-position.zip
+	unzip 176-source-position.zip
+	rm 176-source-position.zip
+	cd bnfc-176-source-position/source && cabal install
+
+bnfc_install:
+	cd bnfc-176-source-position/source && cabal install
+
+bnfc_binary = bnfc-176-source-position/source/dist/build/bnfc/bnfc
 
 latteM:
 	cp src/Latte.cf latte/Latte.cf
-	cd latte && bnfc -m Latte.cf
+	cd latte && ../$(bnfc_binary) --functor -m Latte.cf
 	$(MAKE) -C latte
 
 compiler:

@@ -1,1 +1,27 @@
 #!/bin/bash
+
+filePath=$1
+
+fileDir=$(dirname "${filePath}")
+
+if [ -z "$fileDir" ]; then
+
+    fileDir = "."
+
+fi
+
+fileNameExt=$(basename "${filePath}")
+
+fileName="${fileNameExt%.*}"
+
+fileBase="${fileDir}/${fileName}"
+
+assemblyFile="${fileBase}.s"
+
+execFile="${fileBase}"
+
+
+
+build/Compiler < $filePath > $assemblyFile
+
+gcc $assemblyFile -o "${execFile}"

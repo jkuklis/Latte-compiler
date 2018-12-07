@@ -1,3 +1,5 @@
 module Main where
 
-main = putStrLn "Hehe"
+import System.IO
+
+main = hPutStrLn stderr "Hehe"
