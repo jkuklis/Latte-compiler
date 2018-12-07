@@ -25,8 +25,10 @@ data AnalysisState = AnalysisState {
     continue :: Bool,
     errors :: [String],
     funMap :: FunMap,
-    outerVarMap :: VarMap,
-    localVarMap :: VarMap
+    outVarMap :: VarMap,
+    locVarMap :: VarMap,
+    retType :: Type Pos,
+    ret :: Bool
     } deriving Show
 
 type AS a = State AnalysisState a
@@ -35,33 +37,73 @@ startState = AnalysisState {
     continue = True,
     errors = [],
     funMap = M.empty,
-    outerVarMap = M.empty,
-    localVarMap = M.empty
-
+    outVarMap = M.empty,
+    locVarMap = M.empty,
+    retType = Int (Just(0,0)),
+    ret = False
 }
 
 
-msgFunDefined :: Ident -> Pos -> Pos -> String
+msgRedefined :: String -> Ident -> Pos -> Pos -> String
 
-msgFunDefined (Ident ident) (Just (line, char)) (Just (prevLine, prevChar)) =
-    "Function " ++ ident ++ " redefined!\n"
-    ++ "Defined in line " ++ (show line)
+msgRedefined what (Ident ident) (Just (line, char)) (Just (prevLine, prevChar))
+    = what ++ " " ++ ident ++ " redefined!\n"
+    ++ "Redefined in line " ++ (show line)
     ++ " (at pos " ++ (show char) ++ ")"
     ++ ", previously defined in line " ++ (show prevLine)
     ++ " (at pos " ++ (show prevChar) ++ ")\n"
 
 
+msgFunDefined :: Ident -> Pos -> Pos -> String
+
+msgFunDefined ident pos prevPos =
+    msgRedefined "Function" ident pos prevPos
+
+
+msgSameArg :: Ident -> Pos -> Pos -> String
+
+msgSameArg ident pos prevPos =
+    msgRedefined "Argument" ident pos prevPos
+
+
 addError :: String -> AS ()
 
-addError error = do
-    modify $ \s -> s { errors = (error : (errors s)) }
-    modify $ \s -> s { continue = False }
+addError error =
+    modify $ \s -> s { errors = (error : (errors s)), continue = False }
 
 
 addPrototype :: Ident -> Pos -> Type Pos -> [Arg Pos] -> AS ()
 
 addPrototype ident pos type_ args =
     modify $ \s -> s { funMap = M.insert ident (pos, type_, args) (funMap s) }
+
+
+setRetType :: Type Pos -> AS ()
+
+setRetType type_ =
+    modify $ \s -> s { retType = type_, ret = False }
+
+
+addOuter :: Ident -> Pos -> Type Pos -> AS ()
+
+addOuter ident pos type_ =
+    modify $ \s -> s { outVarMap = M.insert ident (pos, type_) (outVarMap s) }
+
+
+addArgs :: [Arg Pos] -> AS ()
+
+addArgs [] =
+    return ()
+
+addArgs (arg:args) = do
+    let Arg pos type_ ident = arg
+    outer <- gets $ M.lookup ident . outVarMap
+    case outer of
+        Just (prevPos, _) -> do
+            addError $ msgSameArg ident pos prevPos
+        Nothing -> do
+            addOuter ident pos type_
+    addArgs args
 
 
 getPrototypes :: [TopDef Pos] -> AS ()
@@ -80,17 +122,17 @@ getPrototypes (def:defs) = do
     getPrototypes defs
 
 
-checkVariables :: [TopDef Pos] -> AS ()
+checkFunctions :: [TopDef Pos] -> AS ()
 
-checkVariables [] =
+checkFunctions [] =
     return ()
 
-checkVariables (def:defs) = do
+checkFunctions (def:defs) = do
     let FnDef pos type_ ident args block = def
-    fun <- gets $ M.lookup ident . funMap
-
-
-    checkVariables defs
+    setRetType type_
+    addArgs args
+    -- checkBlock block
+    checkFunctions defs
 
 
 
@@ -105,12 +147,13 @@ analyse input =
                 return False
 
             Ok (Program _ defs) -> do
-                let state = execState (getPrototypes defs) startState
-                -- let state = execState (checkVariables defs) state
+                let statePrototypes = execState (getPrototypes defs) startState
+                let state = execState (checkFunctions defs) statePrototypes
                 if continue state
                     then
                         putErrLn "OK\n"
                     else do
                         putErrLn "ERROR\n"
                         putErr $ unlines $ errors state
+                -- putErrLn $ show state
                 return $ continue state
