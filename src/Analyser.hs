@@ -44,6 +44,12 @@ startState = AnalysisState {
 }
 
 
+msgDefined :: Pos -> String
+
+msgDefined (Just (line, char)) =
+    "Defined in line " ++ (show line) ++ " (at pos " ++ (show char) ++ ")"
+
+
 msgRedefined :: String -> Ident -> Pos -> Pos -> String
 
 msgRedefined what (Ident ident) (Just (line, char)) (Just (prevLine, prevChar))
@@ -51,7 +57,7 @@ msgRedefined what (Ident ident) (Just (line, char)) (Just (prevLine, prevChar))
     ++ "Redefined in line " ++ (show line)
     ++ " (at pos " ++ (show char) ++ ")"
     ++ ", previously defined in line " ++ (show prevLine)
-    ++ " (at pos " ++ (show prevChar) ++ ")\n"
+    ++ " (at pos " ++ (show prevChar) ++ ")"
 
 
 msgFunDefined :: Ident -> Pos -> Pos -> String
@@ -64,6 +70,24 @@ msgSameArg :: Ident -> Pos -> Pos -> String
 
 msgSameArg ident pos prevPos =
     msgRedefined "Argument" ident pos prevPos
+
+
+msgMainType :: Type Pos -> Pos -> String
+
+msgMainType type_ pos =
+    "Incorrect main type: " ++ (show type_) ++ "\n" ++ (msgDefined pos)
+
+
+msgMainArgs :: Pos -> String
+
+msgMainArgs pos =
+    "Function main argument list not empty!\n" ++ (msgDefined pos)
+
+
+msgNoMain :: String
+
+msgNoMain =
+    "Function main not defined!"
 
 
 addError :: String -> AS ()
@@ -108,7 +132,9 @@ addArgs (arg:args) = do
 
 getPrototypes :: [TopDef Pos] -> AS ()
 
-getPrototypes [] =
+getPrototypes [] = do
+    main <- gets $ M.lookup (Ident "main") . funMap
+    when (main == Nothing) $ addError $ msgNoMain
     return ()
 
 getPrototypes (def:defs) = do
@@ -118,7 +144,13 @@ getPrototypes (def:defs) = do
         Just (prevPos, _, _) -> do
             addError $ msgFunDefined ident pos prevPos
         Nothing -> do
-            addPrototype ident pos type_ args
+            if ident == Ident "main"
+                then do
+                    when (type_ /= Int pos) $ addError $ msgMainType type_ pos
+                    when (args /= []) $ addError $ msgMainArgs pos
+                    when (type_ == Int pos && args == []) $ addPrototype ident pos type_ args
+                else
+                    addPrototype ident pos type_ args
     getPrototypes defs
 
 
@@ -142,6 +174,7 @@ analyse input =
     let tokens = myLexer input in
         case pProgram tokens of
             Bad error -> do
+                putErrLn "ERROR\n"
                 putErrLn "Failure to parse program!"
                 putErrLn error
                 return False
@@ -154,6 +187,6 @@ analyse input =
                         putErrLn "OK\n"
                     else do
                         putErrLn "ERROR\n"
-                        putErr $ unlines $ errors state
+                        putErr $ unlines $ map (\e -> e ++ "\n") $ errors state
                 -- putErrLn $ show state
                 return $ continue state
