@@ -53,7 +53,8 @@ getPrototypes (def:defs) = do
                 then do
                     when (type_ /= Int pos) $ msgMainType type_ pos
                     when (args /= []) $ msgMainArgs pos
-                    when (type_ == Int pos && args == []) $ addPrototype ident pos type_ args
+                    when (type_ == Int pos && args == []) $
+                        addPrototype ident pos type_ args
                 else
                     addPrototype ident pos type_ args
     getPrototypes defs
@@ -67,25 +68,42 @@ checkFunctions [] =
 checkFunctions (def:defs) = do
     let FnDef pos type_ ident args (Block bPos stmts) = def
     setRetType type_
-    cleanOuter
+    setCur ident
+    cleanVars
     addArgs args
-    checkBlock stmts
+    checkStmts stmts
     case type_ of
         Void tPos ->
             return ()
         _ -> do
             returned <- gets ret
             return ()
-            -- when (not returned) $ msgNoReturn ident pos
+            when (not returned) $ msgNoReturn ident pos
     checkFunctions defs
 
 
-checkBlock :: [Stmt Pos] -> AS ()
+addArgs :: [Arg Pos] -> AS ()
 
-checkBlock [] =
+addArgs [] =
     return ()
 
-checkBlock (st:sts) = do
+addArgs (arg:args) = do
+    let Arg pos type_ ident = arg
+    outer <- gets $ M.lookup ident . outVarMap
+    case outer of
+        Just (prevPos, _) ->
+            msgSameArg ident pos prevPos
+        Nothing ->
+            addOuter ident pos type_
+    addArgs args
+
+
+checkStmts :: [Stmt Pos] -> AS ()
+
+checkStmts [] =
+    return ()
+
+checkStmts (st:sts) = do
     case st of
         Empty pos ->
             return ()
@@ -95,50 +113,64 @@ checkBlock (st:sts) = do
             outer <- gets outVarMap
             localsToOuter $ M.toList locals
             cleanLocals
-            checkBlock stmts
+            checkStmts stmts
             setLocals locals
             setOuter outer
 
-        Decl pos type_ items ->
-            return ()
+        -- Decl pos type_ items ->
+            -- checkDecl type_ items
 
-        Ass pos ident expr ->
-            return ()
+        Ass pos ident expr -> do
+            eType <- checkExpr expr
+            var <- findVar ident
+            case var of
+                Just (tPos, type_) ->
+                    when (not (cmpTypes type_ eType)) $
+                        msgAssign ident pos eType type_ tPos
+                Nothing ->
+                    msgVarUndefined ident pos
 
         Incr pos ident -> do
-            loc <- gets $ M.lookup ident . locVarMap
-            out <- gets $ M.lookup ident . outVarMap
-            case loc of
-                Just (tPos, type_) -> case type_ of
-                    Int tPos -> return ()
-                    _ -> msgIncr ident pos tPos type_
-                Nothing -> case out of
-                    Just (tPos, type_) -> case type_ of
+            var <- findVar ident
+            case var of
+                Just (tPos, type_) ->
+                    case type_ of
                         Int tPos -> return ()
                         _ -> msgIncr ident pos tPos type_
-                    Nothing -> msgVarUndefined ident pos
+                Nothing -> msgVarUndefined ident pos
 
-        Decr pos ident -> checkBlock [Incr pos ident]
+        Decr pos ident -> checkStmts [Incr pos ident]
 
-        Ret pos expr ->
-            return ()
+        Ret pos expr -> do
+            eType <- checkExpr expr
+            rType <- gets retType
+            if cmpTypes rType eType
+                then markReturn
+                else msgReturn pos eType
 
         VRet pos ->
             return ()
 
-        Cond pos expr stmt ->
-            return ()
+        Cond pos expr stmt -> do
+            eType <- checkExpr expr
+            when (not (cmpTypes eType (Bool defaultPos)))
+                $ msgCond pos eType
+            checkStmts [stmt]
 
         CondElse pos expr stmt1 stmt2 ->
-            return ()
+            checkStmts [Cond pos expr stmt1, stmt2]
 
         While pos expr stmt ->
+            checkStmts [Cond pos expr stmt]
+
+        SExp pos expr -> do
+            checkExpr expr
             return ()
 
-        SExp pos expr ->
-            return ()
+    checkStmts sts
 
-    checkBlock sts
+
+
 
 checkExpr :: Expr Pos -> AS (Type Pos)
 

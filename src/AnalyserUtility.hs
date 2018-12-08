@@ -24,7 +24,8 @@ data AnalysisState = AnalysisState {
     outVarMap :: VarMap,
     locVarMap :: VarMap,
     retType :: Type Pos,
-    ret :: Bool
+    ret :: Bool,
+    curFun :: Ident
     } deriving Show
 
 type AS a = State AnalysisState a
@@ -36,11 +37,31 @@ startState = AnalysisState {
     outVarMap = M.empty,
     locVarMap = M.empty,
     retType = defaultType,
-    ret = True
+    ret = True,
+    curFun = Ident ""
 }
 
 
-defaultType = Int $ Just $ (0,0)
+findVar :: Ident -> AS (Maybe (Pos, Type Pos))
+
+findVar ident = do
+    loc <- gets $ M.lookup ident . locVarMap
+    out <- gets $ M.lookup ident . outVarMap
+    case loc of
+        Just _ -> return loc
+        Nothing -> return out
+
+
+setRetType :: Type Pos -> AS ()
+
+setRetType type_ =
+    modify $ \s -> s { retType = type_, ret = False }
+
+
+markReturn :: AS ()
+
+markReturn =
+    modify $ \s -> s { ret = True }
 
 
 addError :: String -> AS ()
@@ -53,12 +74,6 @@ addPrototype :: Ident -> Pos -> Type Pos -> [Arg Pos] -> AS ()
 
 addPrototype ident pos type_ args =
     modify $ \s -> s { funMap = M.insert ident (pos, type_, args) (funMap s) }
-
-
-setRetType :: Type Pos -> AS ()
-
-setRetType type_ =
-    modify $ \s -> s { retType = type_, ret = False }
 
 
 addOuter :: Ident -> Pos -> Type Pos -> AS ()
@@ -89,6 +104,13 @@ setOuter outer =
     modify $ \s -> s { outVarMap = outer }
 
 
+cleanVars :: AS ()
+
+cleanVars = do
+    cleanOuter
+    cleanLocals
+
+
 cleanLocals :: AS ()
 
 cleanLocals = setLocals M.empty
@@ -99,20 +121,10 @@ cleanOuter :: AS ()
 cleanOuter = setOuter M.empty
 
 
-addArgs :: [Arg Pos] -> AS ()
+setCur :: Ident -> AS ()
 
-addArgs [] =
-    return ()
-
-addArgs (arg:args) = do
-    let Arg pos type_ ident = arg
-    outer <- gets $ M.lookup ident . outVarMap
-    case outer of
-        Just (prevPos, _) ->
-            msgSameArg ident pos prevPos
-        Nothing ->
-            addOuter ident pos type_
-    addArgs args
+setCur ident =
+    modify $ \s -> s { curFun = ident }
 
 
 msgPos :: String -> Pos -> String
@@ -184,10 +196,55 @@ msgIncr (Ident ident) pos prevPos type_ =
     ++ (msgPos "Declared" prevPos)
 
 
+msgAssign :: Ident -> Pos -> Type Pos -> Type Pos -> Pos -> AS ()
+
+msgAssign (Ident ident) pos eType type_ prevPos =
+    addError $ "Incorrect type in " ++ ident ++ " assignment!\n"
+    ++ (msgPos "Assignment" pos)
+    ++ "Variable type: " ++ (showType type_)
+    ++ ", expression type: " ++ (showType eType) ++ "\n"
+    ++ (msgPos "Defined" prevPos)
+
+
+msgReturn :: Pos -> Type Pos -> AS ()
+
+msgReturn pos eType = do
+    Ident ident <- gets curFun
+    rType <- gets retType
+    addError $ "Incorrect type in " ++ ident ++ " return!\n"
+        ++ "Function return type: " ++ (showType rType)
+        ++ ", expression type: " ++ (showType eType) ++ "\n"
+        ++ (msgPos "Return" pos)
+
+
+msgCond :: Pos -> Type Pos -> AS ()
+
+msgCond pos eType =
+    addError $ (showType eType) ++ " instead of a boolean in condition!\n"
+    ++ (msgPos "Used" pos)
+
+
+cmpTypes :: Type Pos -> Type Pos -> Bool
+
+cmpTypes (Int pos1) (Int pos2) = True
+cmpTypes (Str pos1) (Str pos2) = True
+cmpTypes (Bool pos1) (Bool pos2) = True
+cmpTypes _ _ = False
+
+
 showType :: Type Pos -> String
 
 showType type_ = case type_ of
     Int pos -> "int"
     Str pos -> "str"
     Bool pos -> "bool"
-    Void pos -> "pos"
+
+
+defaultPos :: Pos
+
+defaultPos = Just $ (0,0)
+
+
+defaultType :: Type Pos
+
+defaultType = Int defaultPos
