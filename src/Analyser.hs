@@ -9,6 +9,7 @@ import ParLatte
 import ErrM
 
 import AnalyserUtility
+import AnalyserErrors
 
 
 analyse :: String -> IO Bool
@@ -110,8 +111,10 @@ checkStmts (st:sts) = do
         BStmt pos (Block bPos stmts) -> do
             locals <- gets locVarMap
             outer <- gets outVarMap
+            isOutermost <- innerBlock
             localsToOuter $ M.toList locals
             checkStmts stmts
+            outerBlock isOutermost
             setLocals locals
             setOuter outer
 
@@ -125,7 +128,7 @@ checkStmts (st:sts) = do
                 Just (prevPos, vType) ->
                     checkTypes eType vType $ msgAssign ident pos vType prevPos
                 Nothing ->
-                    msgVarUndefined ident pos
+                    msgVarUndeclared ident pos
 
         Incr pos ident -> do
             var <- findVar ident
@@ -136,28 +139,39 @@ checkStmts (st:sts) = do
                             return ()
                         _ ->
                             msgIncr ident pos tPos type_
-                Nothing -> msgVarUndefined ident pos
+                Nothing -> msgVarUndeclared ident pos
 
         Decr pos ident -> checkStmts [Incr pos ident]
 
         Ret pos expr -> do
             eType <- checkExpr expr
             rType <- gets retType
-            case eType of
-                Nothing ->
-                    return ()
-                Just (eType) ->
-                    if cmpTypes rType eType
-                        then tryMarkReturn
-                        else msgReturn pos eType
+            case rType of
+                Void fPos ->
+                    msgNotVoidReturn pos
 
-        VRet pos ->
-            return ()
+                _ -> case eType of
+                    Nothing ->
+                        return ()
+                    Just (eType) ->
+                        if cmpTypes rType eType
+                            then tryMarkReturn
+                            else msgReturn pos eType
+
+        VRet pos -> do
+            rType <- gets retType
+            case rType of
+                Void fPos ->
+                    return ()
+                _ ->
+                    msgVoidReturn pos
 
         Cond pos expr stmt -> do
             eType <- checkExpr expr
             checkTypes eType (Bool defaultPos) $ msgCond pos
+            isOutermost <- innerBlock
             checkStmts [stmt]
+            outerBlock isOutermost
 
         CondElse pos expr stmt1 stmt2 ->
             checkStmts [Cond pos expr stmt1, stmt2]
@@ -210,7 +224,8 @@ checkExpr expr = case expr of
         case var of
             Just (vPos, vType) ->
                 return $ Just vType
-            Nothing ->
+            Nothing -> do
+                msgVarUndefined ident pos
                 return Nothing
 
     ELitInt pos int ->
@@ -225,9 +240,11 @@ checkExpr expr = case expr of
     EApp pos ident exprs -> do
         fun <- gets $ M.lookup ident . funMap
         case fun of
-            Just (pos, fType, args) ->
+            Just (fPos, fType, args) -> do
+                checkArgs ident pos args exprs
                 return $ Just fType
-            Nothing ->
+            Nothing -> do
+                msgFunUndefined ident pos
                 return Nothing
 
     EString pos str ->
@@ -260,3 +277,32 @@ checkExpr expr = case expr of
     EOr pos e1 e2 ->  do
 
         return $ Just $ Bool pos
+
+
+checkArgs :: Ident -> Pos -> [Arg Pos] -> [Expr Pos] -> AS ()
+
+checkArgs _ _ [] [] =
+    return ()
+
+checkArgs ident pos args [] =
+    msgTooFewArgs ident pos args
+
+checkArgs ident pos [] exprs = do
+    msgTooManyArgs ident pos exprs
+    checkExprs exprs
+
+checkArgs ident pos (arg:args) (expr:exprs) = do
+    let Arg _ aType aIdent = arg
+    eType <- checkExpr expr
+    checkTypes eType aType $ msgArgType pos ident aIdent aType
+    checkArgs ident pos args exprs
+
+
+checkExprs :: [Expr Pos] -> AS ()
+
+checkExprs [] =
+    return ()
+
+checkExprs (expr:exprs) = do
+    checkExpr expr
+    checkExprs exprs

@@ -31,6 +31,7 @@ data AnalysisState = AnalysisState {
 
 type AS a = State AnalysisState a
 
+
 startFuns = [
         (Ident "printInt", (defaultPos, Void defaultPos,
             [Arg defaultPos (Int defaultPos) defaultIdent])),
@@ -40,6 +41,7 @@ startFuns = [
         (Ident "error", (defaultPos, Void defaultPos, [])),
         (Ident "error", (defaultPos, Void defaultPos, []))
     ]
+
 
 startState = AnalysisState {
     continue = True,
@@ -109,9 +111,8 @@ addLocal ident pos type_ =
 
 localsToOuter :: [(Ident, (Pos, Type Pos))] -> AS ()
 
-localsToOuter [] = do
+localsToOuter [] =
     cleanLocals
-    modify $ \s -> s { outermostBlock = False }
 
 localsToOuter ((ident, entry) : locals) = do
     modify $ \s -> s { outVarMap = M.insert ident entry (outVarMap s) }
@@ -153,126 +154,18 @@ setCur ident =
     modify $ \s -> s { curFun = ident, outermostBlock = True }
 
 
-innerBlock :: AS ()
+innerBlock :: AS Bool
 
-innerBlock =
+innerBlock = do
+    isOutermost <- gets outermostBlock
     modify $ \s -> s { outermostBlock = False }
+    return isOutermost
 
 
-posInfo :: String -> Pos -> String
+outerBlock :: Bool -> AS ()
 
-posInfo what pos@(Just (line, char)) =
-    if pos == defaultPos
-        then ""
-        else
-            what ++ " in line " ++ (show line)
-            ++ " (at pos " ++ (show char) ++ ")\n"
-
-
-msgRedefined :: String -> Ident -> Pos -> Pos -> AS ()
-
-msgRedefined what (Ident ident) pos prevPos =
-    addError $ what ++ " " ++ ident ++ " redefined!\n"
-    ++ (posInfo "Redefined" pos)
-    ++ (posInfo "Previously defined" prevPos)
-
-
-msgFunDefined :: Ident -> Pos -> Pos -> AS ()
-
-msgFunDefined ident pos prevPos =
-    msgRedefined "Function" ident pos prevPos
-
-
-msgSameArg :: Ident -> Pos -> Pos -> AS ()
-
-msgSameArg ident pos prevPos =
-    msgRedefined "Argument" ident pos prevPos
-
-
-msgMainType :: Type Pos -> Pos -> AS ()
-
-msgMainType type_ pos =
-    addError $ "Incorrect main type: " ++ (show type_) ++ "!\n"
-    ++ (posInfo "Defined" pos)
-
-
-msgMainArgs :: Pos -> AS ()
-
-msgMainArgs pos =
-    addError $ "Function main argument list not empty!\n"
-    ++ (posInfo "Defined" pos)
-
-
-msgNoMain :: AS ()
-
-msgNoMain =
-    addError $ "Function main not defined!\n"
-
-
-msgNoReturn :: Ident -> Pos -> AS ()
-
-msgNoReturn (Ident ident) pos =
-    addError $ "Function " ++ ident ++ " has no correct return!\n"
-    ++ (posInfo "Defined" pos)
-
-
-msgVarUndefined :: Ident -> Pos -> AS ()
-
-msgVarUndefined (Ident ident) pos =
-    addError $ "Variable " ++ ident ++ " undeclared!\n"
-    ++ (posInfo "Used" pos)
-
-
-msgIncr :: Ident -> Pos -> Pos -> Type Pos -> AS ()
-
-msgIncr (Ident ident) pos prevPos type_ =
-    addError $ "Variable " ++ ident ++ " cannot be incremented/decremented\n"
-    ++ (posInfo "Used" pos)
-    ++ "It is of type " ++ (showType type_) ++ "\n"
-    ++ (posInfo "Declared" prevPos)
-
-
-msgAssign :: Ident -> Pos -> Type Pos -> Pos -> Type Pos -> AS ()
-
-msgAssign (Ident ident) pos vType prevPos eType =
-    addError $ "Incorrect type in " ++ ident ++ " assignment!\n"
-    ++ (posInfo "Assignment" pos)
-    ++ "Variable type: " ++ (showType vType)
-    ++ ", expression type: " ++ (showType eType) ++ "\n"
-    ++ (posInfo "Defined" prevPos)
-
-
-msgReturn :: Pos -> Type Pos -> AS ()
-
-msgReturn pos eType = do
-    Ident ident <- gets curFun
-    rType <- gets retType
-    addError $ "Incorrect type in " ++ ident ++ " return!\n"
-        ++ "Function return type: " ++ (showType rType)
-        ++ ", expression type: " ++ (showType eType) ++ "\n"
-        ++ (posInfo "Return" pos)
-
-
-msgCond :: Pos -> Type Pos -> AS ()
-
-msgCond pos eType =
-    addError $ (showType eType) ++ " instead of a boolean in condition!\n"
-    ++ (posInfo "Used" pos)
-
-
-msgExpDecl :: Ident -> Pos -> Type Pos -> Type Pos -> AS ()
-
-msgExpDecl (Ident ident) pos dType eType =
-    addError $ "Incorrect expression type in " ++ ident ++ " declaration!\n"
-    ++ "Expected: " ++ (showType dType)
-    ++ ", got: " ++ (showType eType) ++ "\n"
-    ++ (posInfo "Declared" pos)
-
-
-msgVarDeclared :: Ident -> Pos -> Pos -> AS ()
-
-msgVarDeclared ident pos prevPos =
-    msgRedefined "Variable" ident pos prevPos
+outerBlock isOutermost =
+    modify $ \s -> s { outermostBlock = isOutermost }
 
 
 cmpTypes :: Type Pos -> Type Pos -> Bool
