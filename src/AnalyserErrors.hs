@@ -176,3 +176,54 @@ msgArgType pos (Ident ident) (Ident aIdent) aType eType =
     ++ "Expected: " ++ (showType aType)
     ++ ", got: " ++ (showType eType) ++ "\n"
     ++ (posInfo "Invoked" pos)
+
+
+msgNeg :: Pos -> Type Pos -> AS ()
+
+msgNeg pos eType =
+    addError $ "Not an int to negate"
+    ++ ", got: " ++ (showType eType) ++ "\n"
+    ++ (posInfo "Used" pos)
+
+
+msgNot :: Pos -> Type Pos -> AS ()
+
+msgNot pos eType =
+    addError $ "Not a bool for not operation argument"
+    ++ ", got: " ++ (showType eType) ++ "\n"
+    ++ (posInfo "Used" pos)
+
+
+whichStr :: Int -> String
+
+whichStr which =
+    if which == 1
+        then "first"
+        else "second"
+
+msgTwoOperands :: Pos -> Int -> Type Pos -> String -> String -> AS ()
+
+msgTwoOperands pos which eType expType oper =
+    addError $ "Not an " ++ expType
+    ++ "for " ++ oper ++ " operation "
+    ++ (whichStr which) ++ "argument"
+    ++ ", got: " ++ (showType eType) ++ "\n"
+    ++ (posInfo "Used" pos)
+
+
+msgMul :: Pos -> Int -> Type Pos -> AS ()
+
+msgMul pos which eType =
+    msgTwoOperands pos which eType "int" "mul"
+
+
+msgAnd :: Pos -> Int -> Type Pos -> AS ()
+
+msgAnd pos which eType =
+    msgTwoOperands pos which eType "bool" "and"
+
+
+msgOr :: Pos -> Int -> Type Pos -> AS ()
+
+msgOr pos which eType =
+    msgTwoOperands pos which eType "bool" "or"

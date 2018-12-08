@@ -189,9 +189,24 @@ defaultPos :: Pos
 defaultPos = Just $ (0,0)
 
 
+defaultBool :: Type Pos
+
+defaultBool = Bool defaultPos
+
+
+defaultString :: Type Pos
+
+defaultString = Str defaultPos
+
+
+defaultInt :: Type Pos
+
+defaultInt = Int defaultPos
+
+
 defaultType :: Type Pos
 
-defaultType = Int defaultPos
+defaultType = defaultInt
 
 
 defaultIdent :: Ident

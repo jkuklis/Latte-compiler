@@ -168,7 +168,7 @@ checkStmts (st:sts) = do
 
         Cond pos expr stmt -> do
             eType <- checkExpr expr
-            checkTypes eType (Bool defaultPos) $ msgCond pos
+            checkTypes eType defaultBool $ msgCond pos
             isOutermost <- innerBlock
             checkStmts [stmt]
             outerBlock isOutermost
@@ -251,15 +251,20 @@ checkExpr expr = case expr of
         return $ Just $ Str pos
 
     Neg pos expr -> do
-
+        eType <- checkExpr expr
+        checkTypes eType defaultInt $ msgNeg pos
         return $ Just $ Bool pos
 
     Not pos expr -> do
-
+        eType <- checkExpr expr
+        checkTypes eType defaultBool $ msgNot pos
         return $ Just $ Bool pos
 
     EMul pos e1 op e2 ->  do
-
+        eType1 <- checkExpr e1
+        checkTypes eType1 defaultInt $ msgMul pos 1
+        eType2 <- checkExpr e2
+        checkTypes eType2 defaultInt $ msgMul pos 2
         return $ Just $ Int pos
 
     EAdd pos e1 op e2 ->  do
@@ -271,12 +276,28 @@ checkExpr expr = case expr of
         return $ Just $ Bool pos
 
     EAnd pos e1 e2 ->  do
-
+        eType1 <- checkExpr e1
+        checkTypes eType1 defaultBool $ msgAnd pos 1
+        eType2 <- checkExpr e2
+        checkTypes eType2 defaultBool $ msgAnd pos 2
         return $ Just $ Bool pos
 
     EOr pos e1 e2 ->  do
-
+        eType1 <- checkExpr e1
+        checkTypes eType1 defaultBool $ msgOr pos 1
+        eType2 <- checkExpr e2
+        checkTypes eType2 defaultBool $ msgOr pos 2
         return $ Just $ Bool pos
+
+
+checkExprs :: [Expr Pos] -> AS ()
+
+checkExprs [] =
+    return ()
+
+checkExprs (expr:exprs) = do
+    checkExpr expr
+    checkExprs exprs
 
 
 checkArgs :: Ident -> Pos -> [Arg Pos] -> [Expr Pos] -> AS ()
@@ -296,13 +317,3 @@ checkArgs ident pos (arg:args) (expr:exprs) = do
     eType <- checkExpr expr
     checkTypes eType aType $ msgArgType pos ident aIdent aType
     checkArgs ident pos args exprs
-
-
-checkExprs :: [Expr Pos] -> AS ()
-
-checkExprs [] =
-    return ()
-
-checkExprs (expr:exprs) = do
-    checkExpr expr
-    checkExprs exprs
