@@ -1,10 +1,6 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleContexts #-}
-
 module Analyser where
 
 import Control.Monad.State
-import Control.Monad.Except
 
 import qualified Data.Map as M
 
@@ -12,160 +8,7 @@ import AbsLatte
 import ParLatte
 import ErrM
 
-import Utility
-
-
-type Pos = Maybe (Int, Int)
-
-type FunMap = M.Map Ident (Pos, Type Pos, [Arg Pos])
-
-type VarMap = M.Map Ident (Pos, Type Pos)
-
-data AnalysisState = AnalysisState {
-    continue :: Bool,
-    errors :: [String],
-    funMap :: FunMap,
-    outVarMap :: VarMap,
-    locVarMap :: VarMap,
-    retType :: Type Pos,
-    ret :: Bool
-    } deriving Show
-
-type AS a = State AnalysisState a
-
-startState = AnalysisState {
-    continue = True,
-    errors = [],
-    funMap = M.empty,
-    outVarMap = M.empty,
-    locVarMap = M.empty,
-    retType = Int (Just(0,0)),
-    ret = False
-}
-
-
-msgDefined :: Pos -> String
-
-msgDefined (Just (line, char)) =
-    "Defined in line " ++ (show line) ++ " (at pos " ++ (show char) ++ ")"
-
-
-msgRedefined :: String -> Ident -> Pos -> Pos -> String
-
-msgRedefined what (Ident ident) (Just (line, char)) (Just (prevLine, prevChar))
-    = what ++ " " ++ ident ++ " redefined!\n"
-    ++ "Redefined in line " ++ (show line)
-    ++ " (at pos " ++ (show char) ++ ")"
-    ++ ", previously defined in line " ++ (show prevLine)
-    ++ " (at pos " ++ (show prevChar) ++ ")"
-
-
-msgFunDefined :: Ident -> Pos -> Pos -> String
-
-msgFunDefined ident pos prevPos =
-    msgRedefined "Function" ident pos prevPos
-
-
-msgSameArg :: Ident -> Pos -> Pos -> String
-
-msgSameArg ident pos prevPos =
-    msgRedefined "Argument" ident pos prevPos
-
-
-msgMainType :: Type Pos -> Pos -> String
-
-msgMainType type_ pos =
-    "Incorrect main type: " ++ (show type_) ++ "\n" ++ (msgDefined pos)
-
-
-msgMainArgs :: Pos -> String
-
-msgMainArgs pos =
-    "Function main argument list not empty!\n" ++ (msgDefined pos)
-
-
-msgNoMain :: String
-
-msgNoMain =
-    "Function main not defined!"
-
-
-addError :: String -> AS ()
-
-addError error =
-    modify $ \s -> s { errors = (error : (errors s)), continue = False }
-
-
-addPrototype :: Ident -> Pos -> Type Pos -> [Arg Pos] -> AS ()
-
-addPrototype ident pos type_ args =
-    modify $ \s -> s { funMap = M.insert ident (pos, type_, args) (funMap s) }
-
-
-setRetType :: Type Pos -> AS ()
-
-setRetType type_ =
-    modify $ \s -> s { retType = type_, ret = False }
-
-
-addOuter :: Ident -> Pos -> Type Pos -> AS ()
-
-addOuter ident pos type_ =
-    modify $ \s -> s { outVarMap = M.insert ident (pos, type_) (outVarMap s) }
-
-
-addArgs :: [Arg Pos] -> AS ()
-
-addArgs [] =
-    return ()
-
-addArgs (arg:args) = do
-    let Arg pos type_ ident = arg
-    outer <- gets $ M.lookup ident . outVarMap
-    case outer of
-        Just (prevPos, _) -> do
-            addError $ msgSameArg ident pos prevPos
-        Nothing -> do
-            addOuter ident pos type_
-    addArgs args
-
-
-getPrototypes :: [TopDef Pos] -> AS ()
-
-getPrototypes [] = do
-    main <- gets $ M.lookup (Ident "main") . funMap
-    when (main == Nothing) $ addError $ msgNoMain
-    return ()
-
-getPrototypes (def:defs) = do
-    let FnDef pos type_ ident args block = def
-    fun <- gets $ M.lookup ident . funMap
-    case fun of
-        Just (prevPos, _, _) -> do
-            addError $ msgFunDefined ident pos prevPos
-        Nothing -> do
-            if ident == Ident "main"
-                then do
-                    when (type_ /= Int pos) $ addError $ msgMainType type_ pos
-                    when (args /= []) $ addError $ msgMainArgs pos
-                    when (type_ == Int pos && args == []) $ addPrototype ident pos type_ args
-                else
-                    addPrototype ident pos type_ args
-    getPrototypes defs
-
-
-checkFunctions :: [TopDef Pos] -> AS ()
-
-checkFunctions [] =
-    return ()
-
-checkFunctions (def:defs) = do
-    let FnDef pos type_ ident args block = def
-    setRetType type_
-    addArgs args
-    -- checkBlock block
-    checkFunctions defs
-
+import AnalyserUtility
 
 
 analyse :: String -> IO Bool
@@ -187,6 +30,117 @@ analyse input =
                         putErrLn "OK\n"
                     else do
                         putErrLn "ERROR\n"
-                        putErr $ unlines $ map (\e -> e ++ "\n") $ errors state
+                        putErr $ unlines $ errors state
                 -- putErrLn $ show state
                 return $ continue state
+
+
+getPrototypes :: [TopDef Pos] -> AS ()
+
+getPrototypes [] = do
+    main <- gets $ M.lookup (Ident "main") . funMap
+    when (main == Nothing) $ msgNoMain
+
+
+getPrototypes (def:defs) = do
+    let FnDef pos type_ ident args block = def
+    fun <- gets $ M.lookup ident . funMap
+    case fun of
+        Just (prevPos, _, _) ->
+            msgFunDefined ident pos prevPos
+        Nothing -> do
+            if ident == Ident "main"
+                then do
+                    when (type_ /= Int pos) $ msgMainType type_ pos
+                    when (args /= []) $ msgMainArgs pos
+                    when (type_ == Int pos && args == []) $ addPrototype ident pos type_ args
+                else
+                    addPrototype ident pos type_ args
+    getPrototypes defs
+
+
+checkFunctions :: [TopDef Pos] -> AS ()
+
+checkFunctions [] =
+    return ()
+
+checkFunctions (def:defs) = do
+    let FnDef pos type_ ident args (Block bPos stmts) = def
+    setRetType type_
+    cleanOuter
+    addArgs args
+    checkBlock stmts
+    case type_ of
+        Void tPos ->
+            return ()
+        _ -> do
+            returned <- gets ret
+            return ()
+            -- when (not returned) $ msgNoReturn ident pos
+    checkFunctions defs
+
+
+checkBlock :: [Stmt Pos] -> AS ()
+
+checkBlock [] =
+    return ()
+
+checkBlock (st:sts) = do
+    case st of
+        Empty pos ->
+            return ()
+
+        BStmt pos (Block bPos stmts) -> do
+            locals <- gets locVarMap
+            outer <- gets outVarMap
+            localsToOuter $ M.toList locals
+            cleanLocals
+            checkBlock stmts
+            setLocals locals
+            setOuter outer
+
+        Decl pos type_ items ->
+            return ()
+
+        Ass pos ident expr ->
+            return ()
+
+        Incr pos ident -> do
+            loc <- gets $ M.lookup ident . locVarMap
+            out <- gets $ M.lookup ident . outVarMap
+            case loc of
+                Just (tPos, type_) -> case type_ of
+                    Int tPos -> return ()
+                    _ -> msgIncr ident pos tPos type_
+                Nothing -> case out of
+                    Just (tPos, type_) -> case type_ of
+                        Int tPos -> return ()
+                        _ -> msgIncr ident pos tPos type_
+                    Nothing -> msgVarUndefined ident pos
+
+        Decr pos ident -> checkBlock [Incr pos ident]
+
+        Ret pos expr ->
+            return ()
+
+        VRet pos ->
+            return ()
+
+        Cond pos expr stmt ->
+            return ()
+
+        CondElse pos expr stmt1 stmt2 ->
+            return ()
+
+        While pos expr stmt ->
+            return ()
+
+        SExp pos expr ->
+            return ()
+
+    checkBlock sts
+
+checkExpr :: Expr Pos -> AS (Type Pos)
+
+checkExpr expr =
+    return defaultType
