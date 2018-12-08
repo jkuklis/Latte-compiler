@@ -111,7 +111,6 @@ checkStmts (st:sts) = do
             locals <- gets locVarMap
             outer <- gets outVarMap
             localsToOuter $ M.toList locals
-            cleanLocals
             checkStmts stmts
             setLocals locals
             setOuter outer
@@ -123,9 +122,8 @@ checkStmts (st:sts) = do
             eType <- checkExpr expr
             var <- findVar ident
             case var of
-                Just (tPos, type_) ->
-                    when (not (cmpTypes type_ eType)) $
-                        msgAssign ident pos eType type_ tPos
+                Just (prevPos, vType) ->
+                    checkTypes eType vType $ msgAssign ident pos vType prevPos
                 Nothing ->
                     msgVarUndefined ident pos
 
@@ -134,8 +132,10 @@ checkStmts (st:sts) = do
             case var of
                 Just (tPos, type_) ->
                     case type_ of
-                        Int tPos -> return ()
-                        _ -> msgIncr ident pos tPos type_
+                        Int tPos ->
+                            return ()
+                        _ ->
+                            msgIncr ident pos tPos type_
                 Nothing -> msgVarUndefined ident pos
 
         Decr pos ident -> checkStmts [Incr pos ident]
@@ -143,17 +143,20 @@ checkStmts (st:sts) = do
         Ret pos expr -> do
             eType <- checkExpr expr
             rType <- gets retType
-            if cmpTypes rType eType
-                then markReturn
-                else msgReturn pos eType
+            case eType of
+                Nothing ->
+                    return ()
+                Just (eType) ->
+                    if cmpTypes rType eType
+                        then tryMarkReturn
+                        else msgReturn pos eType
 
         VRet pos ->
             return ()
 
         Cond pos expr stmt -> do
             eType <- checkExpr expr
-            when (not (cmpTypes eType (Bool defaultPos)))
-                $ msgCond pos eType
+            checkTypes eType (Bool defaultPos) $ msgCond pos
             checkStmts [stmt]
 
         CondElse pos expr stmt1 stmt2 ->
@@ -169,6 +172,15 @@ checkStmts (st:sts) = do
     checkStmts sts
 
 
+checkTypes :: Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS ()) -> AS ()
+
+checkTypes eType dType action = case eType of
+    Nothing ->
+        return ()
+    Just (eType) ->
+        when (not (cmpTypes dType eType)) (action eType)
+
+
 checkDecl :: Type Pos -> [Item Pos] -> AS ()
 
 checkDecl _ [] =
@@ -177,8 +189,7 @@ checkDecl _ [] =
 checkDecl dType (item:items) = case item of
     Init pos ident expr -> do
         eType <- checkExpr expr
-        when (not (cmpTypes dType eType)) $
-            msgExpDecl ident pos dType eType
+        checkTypes eType dType $ msgExpDecl ident pos dType
         checkDecl dType $ (NoInit pos ident) : items
 
     NoInit pos ident -> do
@@ -191,7 +202,61 @@ checkDecl dType (item:items) = case item of
         checkDecl dType items
 
 
-checkExpr :: Expr Pos -> AS (Type Pos)
+checkExpr :: Expr Pos -> AS (Maybe (Type Pos))
 
-checkExpr expr =
-    return defaultType
+checkExpr expr = case expr of
+    EVar pos ident -> do
+        var <- findVar ident
+        case var of
+            Just (vPos, vType) ->
+                return $ Just vType
+            Nothing ->
+                return Nothing
+
+    ELitInt pos int ->
+        return $ Just $ Int pos
+
+    ELitTrue pos ->
+        return $ Just $ Bool pos
+
+    ELitFalse pos ->
+        return $ Just $ Bool pos
+
+    EApp pos ident exprs -> do
+        fun <- gets $ M.lookup ident . funMap
+        case fun of
+            Just (pos, fType, args) ->
+                return $ Just fType
+            Nothing ->
+                return Nothing
+
+    EString pos str ->
+        return $ Just $ Str pos
+
+    Neg pos expr -> do
+
+        return $ Just $ Bool pos
+
+    Not pos expr -> do
+
+        return $ Just $ Bool pos
+
+    EMul pos e1 op e2 ->  do
+
+        return $ Just $ Int pos
+
+    EAdd pos e1 op e2 ->  do
+
+        return $ Just $ Int pos
+
+    ERel pos e1 op e2 ->  do
+
+        return $ Just $ Bool pos
+
+    EAnd pos e1 e2 ->  do
+
+        return $ Just $ Bool pos
+
+    EOr pos e1 e2 ->  do
+
+        return $ Just $ Bool pos

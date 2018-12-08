@@ -25,20 +25,32 @@ data AnalysisState = AnalysisState {
     locVarMap :: VarMap,
     retType :: Type Pos,
     ret :: Bool,
-    curFun :: Ident
+    curFun :: Ident,
+    outermostBlock :: Bool
     } deriving Show
 
 type AS a = State AnalysisState a
 
+startFuns = [
+        (Ident "printInt", (defaultPos, Void defaultPos,
+            [Arg defaultPos (Int defaultPos) defaultIdent])),
+        (Ident "printString", (defaultPos, Void defaultPos,
+            [Arg defaultPos (Str defaultPos) defaultIdent])),
+        (Ident "error", (defaultPos, Void defaultPos, [])),
+        (Ident "error", (defaultPos, Void defaultPos, [])),
+        (Ident "error", (defaultPos, Void defaultPos, []))
+    ]
+
 startState = AnalysisState {
     continue = True,
     errors = [],
-    funMap = M.empty,
+    funMap = M.fromList startFuns,
     outVarMap = M.empty,
     locVarMap = M.empty,
     retType = defaultType,
     ret = True,
-    curFun = Ident ""
+    curFun = Ident "",
+    outermostBlock = True
 }
 
 
@@ -64,10 +76,11 @@ setRetType type_ =
     modify $ \s -> s { retType = type_, ret = False }
 
 
-markReturn :: AS ()
+tryMarkReturn :: AS ()
 
-markReturn =
-    modify $ \s -> s { ret = True }
+tryMarkReturn = do
+    outermost <- gets outermostBlock
+    when outermost $ modify $ \s -> s { ret = True }
 
 
 addError :: String -> AS ()
@@ -96,8 +109,9 @@ addLocal ident pos type_ =
 
 localsToOuter :: [(Ident, (Pos, Type Pos))] -> AS ()
 
-localsToOuter [] =
-    return ()
+localsToOuter [] = do
+    cleanLocals
+    modify $ \s -> s { outermostBlock = False }
 
 localsToOuter ((ident, entry) : locals) = do
     modify $ \s -> s { outVarMap = M.insert ident entry (outVarMap s) }
@@ -136,13 +150,23 @@ cleanOuter = setOuter M.empty
 setCur :: Ident -> AS ()
 
 setCur ident =
-    modify $ \s -> s { curFun = ident }
+    modify $ \s -> s { curFun = ident, outermostBlock = True }
+
+
+innerBlock :: AS ()
+
+innerBlock =
+    modify $ \s -> s { outermostBlock = False }
 
 
 posInfo :: String -> Pos -> String
 
-posInfo what (Just (line, char)) =
-    what ++ " in line " ++ (show line) ++ " (at pos " ++ (show char) ++ ")\n"
+posInfo what pos@(Just (line, char)) =
+    if pos == defaultPos
+        then ""
+        else
+            what ++ " in line " ++ (show line)
+            ++ " (at pos " ++ (show char) ++ ")\n"
 
 
 msgRedefined :: String -> Ident -> Pos -> Pos -> AS ()
@@ -208,12 +232,12 @@ msgIncr (Ident ident) pos prevPos type_ =
     ++ (posInfo "Declared" prevPos)
 
 
-msgAssign :: Ident -> Pos -> Type Pos -> Type Pos -> Pos -> AS ()
+msgAssign :: Ident -> Pos -> Type Pos -> Pos -> Type Pos -> AS ()
 
-msgAssign (Ident ident) pos eType type_ prevPos =
+msgAssign (Ident ident) pos vType prevPos eType =
     addError $ "Incorrect type in " ++ ident ++ " assignment!\n"
     ++ (posInfo "Assignment" pos)
-    ++ "Variable type: " ++ (showType type_)
+    ++ "Variable type: " ++ (showType vType)
     ++ ", expression type: " ++ (showType eType) ++ "\n"
     ++ (posInfo "Defined" prevPos)
 
@@ -276,6 +300,10 @@ defaultType :: Type Pos
 
 defaultType = Int defaultPos
 
+
+defaultIdent :: Ident
+
+defaultIdent = Ident "a"
 
 saveState :: AS ()
 
