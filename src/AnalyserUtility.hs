@@ -52,6 +52,12 @@ findVar ident = do
         Nothing -> return out
 
 
+findLoc :: Ident -> AS (Maybe (Pos, Type Pos))
+
+findLoc ident =
+    gets $ M.lookup ident . locVarMap
+
+
 setRetType :: Type Pos -> AS ()
 
 setRetType type_ =
@@ -80,6 +86,12 @@ addOuter :: Ident -> Pos -> Type Pos -> AS ()
 
 addOuter ident pos type_ =
     modify $ \s -> s { outVarMap = M.insert ident (pos, type_) (outVarMap s) }
+
+
+addLocal :: Ident -> Pos -> Type Pos -> AS ()
+
+addLocal ident pos type_ =
+    modify $ \s -> s { locVarMap = M.insert ident (pos, type_) (locVarMap s) }
 
 
 localsToOuter :: [(Ident, (Pos, Type Pos))] -> AS ()
@@ -127,44 +139,44 @@ setCur ident =
     modify $ \s -> s { curFun = ident }
 
 
-msgPos :: String -> Pos -> String
+posInfo :: String -> Pos -> String
 
-msgPos what (Just (line, char)) =
+posInfo what (Just (line, char)) =
     what ++ " in line " ++ (show line) ++ " (at pos " ++ (show char) ++ ")\n"
 
 
-msgRedefined :: String -> Ident -> Pos -> Pos -> String
+msgRedefined :: String -> Ident -> Pos -> Pos -> AS ()
 
-msgRedefined what (Ident ident) pos prevPos
-    = what ++ " " ++ ident ++ " redefined!\n"
-    ++ (msgPos "Redefined" pos)
-    ++ (msgPos "Previously defined" prevPos)
+msgRedefined what (Ident ident) pos prevPos =
+    addError $ what ++ " " ++ ident ++ " redefined!\n"
+    ++ (posInfo "Redefined" pos)
+    ++ (posInfo "Previously defined" prevPos)
 
 
 msgFunDefined :: Ident -> Pos -> Pos -> AS ()
 
 msgFunDefined ident pos prevPos =
-    addError $ msgRedefined "Function" ident pos prevPos
+    msgRedefined "Function" ident pos prevPos
 
 
 msgSameArg :: Ident -> Pos -> Pos -> AS ()
 
 msgSameArg ident pos prevPos =
-    addError $ msgRedefined "Argument" ident pos prevPos
+    msgRedefined "Argument" ident pos prevPos
 
 
 msgMainType :: Type Pos -> Pos -> AS ()
 
 msgMainType type_ pos =
     addError $ "Incorrect main type: " ++ (show type_) ++ "!\n"
-    ++ (msgPos "Defined" pos)
+    ++ (posInfo "Defined" pos)
 
 
 msgMainArgs :: Pos -> AS ()
 
 msgMainArgs pos =
     addError $ "Function main argument list not empty!\n"
-    ++ (msgPos "Defined" pos)
+    ++ (posInfo "Defined" pos)
 
 
 msgNoMain :: AS ()
@@ -177,33 +189,33 @@ msgNoReturn :: Ident -> Pos -> AS ()
 
 msgNoReturn (Ident ident) pos =
     addError $ "Function " ++ ident ++ " has no correct return!\n"
-    ++ (msgPos "Defined" pos)
+    ++ (posInfo "Defined" pos)
 
 
 msgVarUndefined :: Ident -> Pos -> AS ()
 
 msgVarUndefined (Ident ident) pos =
     addError $ "Variable " ++ ident ++ " undeclared!\n"
-    ++ (msgPos "Used" pos)
+    ++ (posInfo "Used" pos)
 
 
 msgIncr :: Ident -> Pos -> Pos -> Type Pos -> AS ()
 
 msgIncr (Ident ident) pos prevPos type_ =
     addError $ "Variable " ++ ident ++ " cannot be incremented/decremented\n"
-    ++ (msgPos "Used" pos)
+    ++ (posInfo "Used" pos)
     ++ "It is of type " ++ (showType type_) ++ "\n"
-    ++ (msgPos "Declared" prevPos)
+    ++ (posInfo "Declared" prevPos)
 
 
 msgAssign :: Ident -> Pos -> Type Pos -> Type Pos -> Pos -> AS ()
 
 msgAssign (Ident ident) pos eType type_ prevPos =
     addError $ "Incorrect type in " ++ ident ++ " assignment!\n"
-    ++ (msgPos "Assignment" pos)
+    ++ (posInfo "Assignment" pos)
     ++ "Variable type: " ++ (showType type_)
     ++ ", expression type: " ++ (showType eType) ++ "\n"
-    ++ (msgPos "Defined" prevPos)
+    ++ (posInfo "Defined" prevPos)
 
 
 msgReturn :: Pos -> Type Pos -> AS ()
@@ -214,14 +226,29 @@ msgReturn pos eType = do
     addError $ "Incorrect type in " ++ ident ++ " return!\n"
         ++ "Function return type: " ++ (showType rType)
         ++ ", expression type: " ++ (showType eType) ++ "\n"
-        ++ (msgPos "Return" pos)
+        ++ (posInfo "Return" pos)
 
 
 msgCond :: Pos -> Type Pos -> AS ()
 
 msgCond pos eType =
     addError $ (showType eType) ++ " instead of a boolean in condition!\n"
-    ++ (msgPos "Used" pos)
+    ++ (posInfo "Used" pos)
+
+
+msgExpDecl :: Ident -> Pos -> Type Pos -> Type Pos -> AS ()
+
+msgExpDecl (Ident ident) pos dType eType =
+    addError $ "Incorrect expression type in " ++ ident ++ " declaration!\n"
+    ++ "Expected: " ++ (showType dType)
+    ++ ", got: " ++ (showType eType) ++ "\n"
+    ++ (posInfo "Declared" pos)
+
+
+msgVarDeclared :: Ident -> Pos -> Pos -> AS ()
+
+msgVarDeclared ident pos prevPos =
+    msgRedefined "Variable" ident pos prevPos
 
 
 cmpTypes :: Type Pos -> Type Pos -> Bool
@@ -248,3 +275,10 @@ defaultPos = Just $ (0,0)
 defaultType :: Type Pos
 
 defaultType = Int defaultPos
+
+
+saveState :: AS ()
+
+saveState = do
+    state <- get
+    addError $ show state

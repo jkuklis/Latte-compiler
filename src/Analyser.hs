@@ -31,7 +31,6 @@ analyse input =
                     else do
                         putErrLn "ERROR\n"
                         putErr $ unlines $ errors state
-                -- putErrLn $ show state
                 return $ continue state
 
 
@@ -117,8 +116,8 @@ checkStmts (st:sts) = do
             setLocals locals
             setOuter outer
 
-        -- Decl pos type_ items ->
-            -- checkDecl type_ items
+        Decl pos dType items ->
+            checkDecl dType items
 
         Ass pos ident expr -> do
             eType <- checkExpr expr
@@ -170,6 +169,26 @@ checkStmts (st:sts) = do
     checkStmts sts
 
 
+checkDecl :: Type Pos -> [Item Pos] -> AS ()
+
+checkDecl _ [] =
+    return ()
+
+checkDecl dType (item:items) = case item of
+    Init pos ident expr -> do
+        eType <- checkExpr expr
+        when (not (cmpTypes dType eType)) $
+            msgExpDecl ident pos dType eType
+        checkDecl dType $ (NoInit pos ident) : items
+
+    NoInit pos ident -> do
+        var <- findLoc ident
+        case var of
+            Just (vPos, vType) ->
+                msgVarDeclared ident pos vPos
+            Nothing ->
+                addLocal ident pos dType
+        checkDecl dType items
 
 
 checkExpr :: Expr Pos -> AS (Type Pos)
