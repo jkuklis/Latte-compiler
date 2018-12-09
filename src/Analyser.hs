@@ -262,30 +262,29 @@ checkExpr expr = case expr of
 
     EMul pos e1 op e2 ->  do
         eType1 <- checkExpr e1
-        checkTypes eType1 defaultInt $ msgMul pos 1
         eType2 <- checkExpr e2
+        checkTypes eType1 defaultInt $ msgMul pos 1
         checkTypes eType2 defaultInt $ msgMul pos 2
         return $ Just $ Int pos
 
     EAdd pos e1 op e2 ->  do
-
-        return $ Just $ Int pos
+        checkAdd expr
 
     ERel pos e1 op e2 ->  do
-
+        checkRel expr
         return $ Just $ Bool pos
 
     EAnd pos e1 e2 ->  do
         eType1 <- checkExpr e1
-        checkTypes eType1 defaultBool $ msgAnd pos 1
         eType2 <- checkExpr e2
+        checkTypes eType1 defaultBool $ msgAnd pos 1
         checkTypes eType2 defaultBool $ msgAnd pos 2
         return $ Just $ Bool pos
 
     EOr pos e1 e2 ->  do
         eType1 <- checkExpr e1
-        checkTypes eType1 defaultBool $ msgOr pos 1
         eType2 <- checkExpr e2
+        checkTypes eType1 defaultBool $ msgOr pos 1
         checkTypes eType2 defaultBool $ msgOr pos 2
         return $ Just $ Bool pos
 
@@ -317,3 +316,87 @@ checkArgs ident pos (arg:args) (expr:exprs) = do
     eType <- checkExpr expr
     checkTypes eType aType $ msgArgType pos ident aIdent aType
     checkArgs ident pos args exprs
+
+
+checkAdd :: Expr Pos -> AS (Maybe (Type Pos))
+
+checkAdd (EAdd pos e1 op e2) =
+    case op of
+        Plus oPos -> do
+            eType1 <- checkExpr e1
+            eType2 <- checkExpr e2
+            case eType1 of
+                Just (Int ePos) -> do
+                    case eType2 of
+                        Just (Int ePos) ->
+                            return ()
+                        Nothing ->
+                            return ()
+                        Just eType2 ->
+                            msgAddInt pos 2 eType2
+                    return $ Just $ Int pos
+
+                Just (Str ePos) -> do
+                    case eType2 of
+                        Just (Str ePos) ->
+                            return ()
+                        Nothing ->
+                            return ()
+                        Just eType2 ->
+                            msgAddStr pos 2 eType2
+                    return $ Just $ Str pos
+
+                Just eType1 -> case eType2 of
+                    Just (Int ePos) -> do
+                        msgAddInt pos 1 eType1
+                        return $ Just $ Int pos
+
+                    Just (Str ePos) -> do
+                        msgAddStr pos 1 eType1
+                        return $ Just $ Str pos
+
+                    Nothing -> do
+                        msgAddType pos
+                        return Nothing
+
+                Nothing -> case eType2 of
+                    Just (Int ePos) ->
+                        return $ Just $ Int pos
+
+                    Just (Str ePos) ->
+                        return $ Just $ Str pos
+
+                    Nothing -> do
+                        msgAddType pos
+                        return Nothing
+
+        Minus oPos -> do
+            eType1 <- checkExpr e1
+            eType2 <- checkExpr e2
+            checkTypes eType1 defaultInt $ msgMinus pos 1
+            checkTypes eType2 defaultInt $ msgMinus pos 2
+            return $ Just $ Int pos
+
+
+checkRel :: Expr Pos -> AS ()
+
+checkRel (ERel pos e1 op e2) =
+    case op of
+        EQU oPos -> do
+            eType1 <- checkExpr e1
+            eType2 <- checkExpr e2
+            case eType1 of
+                Just eType1 ->
+                    checkTypes eType2 eType1 $ msgEqType pos eType1
+
+                Nothing ->
+                    return ()
+
+        NE oPos ->
+            checkRel (ERel pos e1 (EQU oPos) e2)
+
+        _ -> do
+            eType1 <- checkExpr e1
+            eType2 <- checkExpr e2
+            checkTypes eType1 defaultInt $ msgRelInt pos 1
+            checkTypes eType2 defaultInt $ msgRelInt pos 2

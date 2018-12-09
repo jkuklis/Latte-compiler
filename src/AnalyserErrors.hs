@@ -204,9 +204,9 @@ whichStr which =
 msgTwoOperands :: Pos -> Int -> Type Pos -> String -> String -> AS ()
 
 msgTwoOperands pos which eType expType oper =
-    addError $ "Not an " ++ expType
-    ++ "for " ++ oper ++ " operation "
-    ++ (whichStr which) ++ "argument"
+    addError $ "Not " ++ expType
+    ++ " for " ++ oper ++ " operation "
+    ++ (whichStr which) ++ " argument"
     ++ ", got: " ++ (showType eType) ++ "\n"
     ++ (posInfo "Used" pos)
 
@@ -227,3 +227,43 @@ msgOr :: Pos -> Int -> Type Pos -> AS ()
 
 msgOr pos which eType =
     msgTwoOperands pos which eType "bool" "or"
+
+
+msgMinus :: Pos -> Int -> Type Pos -> AS ()
+
+msgMinus pos which eType =
+    msgTwoOperands pos which eType "int" "subtraction"
+
+
+msgAddType :: Pos -> AS ()
+
+msgAddType pos =
+    addError $ "Can't deduce addition return type!\n"
+    ++ (posInfo "Addition" pos)
+
+
+msgAddInt :: Pos -> Int -> Type Pos -> AS ()
+
+msgAddInt pos which eType =
+    msgTwoOperands pos which eType "int" "addition"
+
+
+msgAddStr :: Pos -> Int -> Type Pos -> AS ()
+
+msgAddStr pos which eType =
+    msgTwoOperands pos which eType "string" "concatenation"
+
+
+msgRelInt :: Pos -> Int -> Type Pos -> AS ()
+
+msgRelInt pos which eType =
+    msgTwoOperands pos which eType "int" "integer comparison"
+
+
+msgEqType :: Pos -> Type Pos -> Type Pos -> AS ()
+
+msgEqType pos eType1 eType2 =
+    addError $ "Mismatched types in equality comparison!\n"
+    ++ "Expected: " ++ (showType eType1)
+    ++ ", got: " ++ (showType eType2) ++ "\n"
+    ++ (posInfo "Compared" pos)
