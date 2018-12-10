@@ -9,7 +9,7 @@ filePath=$1
 fileDir=$(dirname "${filePath}")
 
 if [ -z "$fileDir" ]; then
-    fileDir = "."
+    fileDir="."
 fi
 
 fileNameExt=$(basename "${filePath}")

@@ -34,12 +34,12 @@ type AS a = State AnalysisState a
 
 startFuns = [
         (Ident "printInt", (defaultPos, Void defaultPos,
-            [Arg defaultPos (Int defaultPos) defaultIdent])),
+            [Arg defaultPos (Int defaultPos) (Ident "toPrint")])),
         (Ident "printString", (defaultPos, Void defaultPos,
-            [Arg defaultPos (Str defaultPos) defaultIdent])),
+            [Arg defaultPos (Str defaultPos) (Ident "toPrint")])),
         (Ident "error", (defaultPos, Void defaultPos, [])),
-        (Ident "error", (defaultPos, Void defaultPos, [])),
-        (Ident "error", (defaultPos, Void defaultPos, []))
+        (Ident "readInt", (defaultPos, Int defaultPos, [])),
+        (Ident "readString", (defaultPos, Str defaultPos, []))
     ]
 
 

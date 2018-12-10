@@ -267,3 +267,33 @@ msgEqType pos eType1 eType2 =
     ++ "Expected: " ++ (showType eType1)
     ++ ", got: " ++ (showType eType2) ++ "\n"
     ++ (posInfo "Compared" pos)
+
+
+msgIntTooSmall :: Pos -> Integer -> AS ()
+
+msgIntTooSmall pos int =
+    addError $ "Integer smaller than minimal int: " ++ (show int) ++ "\n"
+    ++ (posInfo "Used" pos)
+
+
+msgIntTooBig :: Pos -> Integer -> AS ()
+
+msgIntTooBig pos int =
+    addError $ "Integer bigger than maximum int: " ++ (show int) ++ "\n"
+    ++ (posInfo "Used" pos)
+
+
+msgVoidArg :: Pos -> Ident -> AS ()
+
+msgVoidArg pos (Ident ident) = do
+    Ident fun <- gets curFun
+    addError $ "Void argument " ++ ident
+        ++ " in function " ++ fun ++ " declaration!\n"
+        ++ (posInfo "Declared" pos)
+
+
+msgVoidVar :: Pos -> AS ()
+
+msgVoidVar pos =
+    addError $ "Void variable declaration!\n"
+    ++ (posInfo "Declaration" pos)

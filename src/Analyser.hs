@@ -20,10 +20,11 @@ analyse input =
             Bad error -> do
                 putErrLn "ERROR\n"
                 putErrLn "Failure to parse program!"
-                putErrLn error
+                putErrLn $ error ++ "\n"
                 return False
 
             Ok (Program _ defs) -> do
+                -- putErrLn $ show defs
                 let statePrototypes = execState (getPrototypes defs) startState
                 let state = execState (checkFunctions defs) statePrototypes
                 if continue state
@@ -32,6 +33,7 @@ analyse input =
                     else do
                         putErrLn "ERROR\n"
                         putErr $ unlines $ errors state
+                -- putErrLn $ show state
                 return $ continue state
 
 
@@ -89,6 +91,11 @@ addArgs [] =
 
 addArgs (arg:args) = do
     let Arg pos type_ ident = arg
+    case type_ of
+        Void _ ->
+            msgVoidArg pos ident
+        _ ->
+            return ()
     outer <- gets $ M.lookup ident . outVarMap
     case outer of
         Just (prevPos, _) ->
@@ -119,7 +126,11 @@ checkStmts (st:sts) = do
             setOuter outer
 
         Decl pos dType items ->
-            checkDecl dType items
+            case dType of
+                Void _ ->
+                    msgVoidVar pos
+                _ ->
+                    checkDecl dType items
 
         Ass pos ident expr -> do
             eType <- checkExpr expr
@@ -228,7 +239,12 @@ checkExpr expr = case expr of
                 msgVarUndefined ident pos
                 return Nothing
 
-    ELitInt pos int ->
+    ELitInt pos int -> do
+        let minInt = -2147483648
+        let maxInt = 2147483647
+        if minInt > int
+            then msgIntTooSmall pos int
+            else when (maxInt < int) $ msgIntTooBig pos int
         return $ Just $ Int pos
 
     ELitTrue pos ->
@@ -253,7 +269,7 @@ checkExpr expr = case expr of
     Neg pos expr -> do
         eType <- checkExpr expr
         checkTypes eType defaultInt $ msgNeg pos
-        return $ Just $ Bool pos
+        return $ Just $ Int pos
 
     Not pos expr -> do
         eType <- checkExpr expr

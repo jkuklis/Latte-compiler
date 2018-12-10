@@ -1,6 +1,12 @@
 #!/bin/bash
 
-for file in gTests/bad/*
+dir=$1
+
+if [ -z "$dir" ]; then
+    dir="gTests/bad"
+fi
+
+for file in "${dir}"/*.lat
 do
     echo $file
     ./latc $file
