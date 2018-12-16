@@ -32,7 +32,7 @@ analyse input =
                         putErrLn "OK\n"
                     else do
                         putErrLn "ERROR\n"
-                        putErr $ unlines $ errors state
+                        putErr $ unlines $ reverse $ errors state
                 -- putErrLn $ show state
                 return $ continue state
 
@@ -73,13 +73,11 @@ checkFunctions (def:defs) = do
     setCur ident
     cleanVars
     addArgs args
-    checkStmts stmts
+    returned <- checkStmts stmts
     case type_ of
         Void tPos ->
             return ()
         _ -> do
-            returned <- gets ret
-            return ()
             when (not returned) $ msgNoReturn ident pos
     checkFunctions defs
 
@@ -105,97 +103,106 @@ addArgs (arg:args) = do
     addArgs args
 
 
-checkStmts :: [Stmt Pos] -> AS ()
+checkStmts :: [Stmt Pos] -> AS Bool
 
 checkStmts [] =
-    return ()
+    return False
 
 checkStmts (st:sts) = do
-    case st of
-        Empty pos ->
-            return ()
+    returnedSt <- checkStmt st
+    returnedStmts <- checkStmts sts
+    return $ returnedSt || returnedStmts
 
-        BStmt pos (Block bPos stmts) -> do
-            locals <- gets locVarMap
-            outer <- gets outVarMap
-            isOutermost <- innerBlock
-            localsToOuter $ M.toList locals
-            checkStmts stmts
-            outerBlock isOutermost
-            setLocals locals
-            setOuter outer
 
-        Decl pos dType items ->
-            case dType of
-                Void _ ->
-                    msgVoidVar pos
-                _ ->
-                    checkDecl dType items
+checkStmt :: Stmt Pos -> AS Bool
 
-        Ass pos ident expr -> do
-            eType <- checkExpr expr
-            var <- findVar ident
-            case var of
-                Just (prevPos, vType) ->
-                    checkTypes eType vType $ msgAssign ident pos vType prevPos
-                Nothing ->
-                    msgVarUndeclared ident pos
+checkStmt st = case st of
+    Empty pos ->
+        return False
 
-        Incr pos ident -> do
-            var <- findVar ident
-            case var of
-                Just (tPos, type_) ->
-                    case type_ of
-                        Int tPos ->
-                            return ()
-                        _ ->
-                            msgIncr ident pos tPos type_
-                Nothing -> msgVarUndeclared ident pos
+    BStmt pos (Block bPos stmts) -> do
+        locals <- gets locVarMap
+        outer <- gets outVarMap
+        localsToOuter $ M.toList locals
+        returned <- checkStmts stmts
+        setLocals locals
+        setOuter outer
+        return returned
 
-        Decr pos ident -> checkStmts [Incr pos ident]
+    Decl pos dType items -> do
+        case dType of
+            Void _ ->
+                msgVoidVar pos
+            _ ->
+                checkDecl dType items
+        return False
 
-        Ret pos expr -> do
-            eType <- checkExpr expr
-            rType <- gets retType
-            case rType of
-                Void fPos ->
-                    msgNotVoidReturn pos
+    Ass pos ident expr -> do
+        eType <- checkExpr expr
+        var <- findVar ident
+        case var of
+            Just (prevPos, vType) ->
+                checkTypes eType vType $ msgAssign ident pos vType prevPos
+            Nothing ->
+                msgVarUndeclared ident pos
+        return False
 
-                _ -> case eType of
-                    Nothing ->
+    Incr pos ident -> do
+        var <- findVar ident
+        case var of
+            Just (tPos, type_) ->
+                case type_ of
+                    Int tPos ->
                         return ()
-                    Just (eType) ->
-                        if cmpTypes rType eType
-                            then tryMarkReturn
-                            else msgReturn pos eType
+                    _ ->
+                        msgIncr ident pos tPos type_
+            Nothing -> msgVarUndeclared ident pos
+        return False
 
-        VRet pos -> do
-            rType <- gets retType
-            case rType of
-                Void fPos ->
-                    return ()
-                _ ->
-                    msgVoidReturn pos
+    Decr pos ident -> checkStmt $ Incr pos ident
 
-        Cond pos expr stmt -> do
-            eType <- checkExpr expr
-            checkTypes eType defaultBool $ msgCond pos
-            isOutermost <- innerBlock
-            checkStmts [stmt]
-            outerBlock isOutermost
+    Ret pos expr -> do
+        eType <- checkExpr expr
+        rType <- gets retType
+        case rType of
+            Void fPos -> do
+                msgNotVoidReturn pos
+                return False
+            _ -> case eType of
+                Nothing ->
+                    return False
+                Just (eType) ->
+                    if cmpTypes rType eType
+                        then return True
+                        else do
+                            msgReturn pos eType
+                            return False
 
-        CondElse pos expr stmt1 stmt2 ->
-            checkStmts [Cond pos expr stmt1, stmt2]
+    VRet pos -> do
+        rType <- gets retType
+        case rType of
+            Void fPos ->
+                return True
+            _ -> do
+                msgVoidReturn pos
+                return False
 
-        While pos expr stmt ->
-            checkStmts [Cond pos expr stmt]
+    Cond pos expr stmt -> checkStmt $ CondElse pos expr stmt (Empty pos)
 
-        SExp pos expr -> do
-            checkExpr expr
-            return ()
+    CondElse pos expr stmt1 stmt2 -> do
+        eType <- checkExpr expr
+        checkTypes eType defaultBool $ msgCond pos
+        ret1 <- checkStmt stmt1
+        ret2 <- checkStmt stmt2
+        return $ ret1 && ret2
 
-    checkStmts sts
+    While pos expr stmt -> do
+        checkStmt $ Cond pos expr stmt
+        return False
 
+    SExp pos expr -> do
+        checkExpr expr
+        return False
 
 checkTypes :: Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS ()) -> AS ()
 

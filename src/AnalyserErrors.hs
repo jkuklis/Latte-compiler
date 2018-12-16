@@ -59,7 +59,7 @@ msgNoMain =
 msgNoReturn :: Ident -> Pos -> AS ()
 
 msgNoReturn (Ident ident) pos =
-    addError $ "Function " ++ ident ++ " has no outermost block return!\n"
+    addError $ "Function " ++ ident ++ " might not return!\n"
     ++ (posInfo "Defined" pos)
 
 
