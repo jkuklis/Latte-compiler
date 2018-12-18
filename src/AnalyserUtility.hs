@@ -186,7 +186,7 @@ showType type_ = case type_ of
 
 defaultPos :: Pos
 
-defaultPos = Just $ (0,0)
+defaultPos = Just (0,0)
 
 
 defaultBool :: Type Pos

@@ -194,11 +194,17 @@ checkStmt st = case st of
         checkTypes eType defaultBool $ msgCond pos
         ret1 <- checkStmt stmt1
         ret2 <- checkStmt stmt2
-        return $ ret1 && ret2
+        constCond <- constantBool expr
+        case constCond of
+            Just True ->
+                return ret1
+            Just False ->
+                return ret2
+            Nothing ->
+                return $ ret1 && ret2
 
     While pos expr stmt -> do
         checkStmt $ Cond pos expr stmt
-        return False
 
     SExp pos expr -> do
         checkExpr expr
@@ -423,3 +429,184 @@ checkRel (ERel pos e1 op e2) =
             eType2 <- checkExpr e2
             checkTypes eType1 defaultInt $ msgRelInt pos 1
             checkTypes eType2 defaultInt $ msgRelInt pos 2
+
+
+constantBool :: Expr Pos -> AS (Maybe Bool)
+
+constantBool expr = case expr of
+    EVar _ _ ->
+        return Nothing
+
+    ELitTrue _ ->
+        return $ Just True
+
+    ELitFalse _ ->
+        return $ Just False
+
+    EApp _ _ _ ->
+        return Nothing
+
+    Not _ expr -> do
+        con <- constantBool expr
+        case con of
+            Just bool ->
+                return $ Just $ not bool
+            Nothing ->
+                return Nothing
+
+    ERel _ e1 op e2 ->
+        let
+            sameVal con1 con2 =
+                case (con1, con2) of
+                    (Just v1, Just v2) ->
+                        return $ Just $ v1 == v2
+                    _ ->
+                        return Nothing
+
+        in case op of
+            EQU _ -> do
+                Just eType <- checkExpr e1
+                case eType of
+                    Int _ -> do
+                        con1 <- constantInt e1
+                        con2 <- constantInt e1
+                        sameVal con1 con2
+
+                    Bool _ -> do
+                        con1 <- constantBool e1
+                        con2 <- constantBool e1
+                        sameVal con1 con2
+
+                    Str _ -> do
+                        con1 <- constantStr e1
+                        con2 <- constantStr e2
+                        sameVal con1 con2
+
+            NE pos -> do
+                con <- constantBool (ERel pos e1 (EQU pos) e2)
+                case con of
+                    Just bool ->
+                        return $ Just $ not bool
+                    Nothing ->
+                        return Nothing
+
+            _ -> do
+                con1 <- constantInt e1
+                con2 <- constantInt e2
+                sameVal con1 con2
+
+    EAnd _ e1 e2 -> do
+        con1 <- constantBool e1
+        con2 <- constantBool e2
+        case (con1, con2) of
+            (Just True, Just True) ->
+                return $ Just True
+            (Just False, _) ->
+                return $ Just False
+            (_, Just False) ->
+                return $ Just False
+            _ ->
+                return Nothing
+
+    EOr _ e1 e2 -> do
+        con1 <- constantBool e1
+        con2 <- constantBool e2
+        case (con1, con2) of
+            (Just False, Just False) ->
+                return $ Just False
+            (Just True, _) ->
+                return $ Just True
+            (_, Just True) ->
+                return $ Just True
+            _ ->
+                return Nothing
+
+    _ ->
+        return Nothing
+
+
+constantInt :: Expr Pos -> AS (Maybe Integer)
+
+constantInt expr = case expr of
+    EVar _ _ ->
+        return Nothing
+
+    ELitInt _ int ->
+        return $ Just int
+
+    EApp _ _ _ ->
+        return Nothing
+
+    Neg _ expr -> do
+        con <- constantInt expr
+        case con of
+            Just int ->
+                return $ Just $ negate int
+            _ ->
+                return Nothing
+
+    EMul _ e1 op e2 -> do
+        con1 <- constantInt e1
+        con2 <- constantInt e2
+        case (con1, con2) of
+            (Just i1, Just i2) ->
+                case op of
+                    Times _ ->
+                        return $ Just $ i1 * i2
+                    Div pos ->
+                        if i2 == 0
+                            then do
+                                msgDivZero pos
+                                return Nothing
+                            else
+                                return $ Just $ i1 `div` i2
+                    Mod pos ->
+                        if i2 == 0
+                            then do
+                                msgModZero pos
+                                return Nothing
+                            else
+                                return $ Just $ i1 `mod` i2
+            _ ->
+                return Nothing
+
+    EAdd _ e1 op e2 -> do
+        con1 <- constantInt e1
+        con2 <- constantInt e2
+        case (con1, con2) of
+            (Just i1, Just i2) ->
+                case op of
+                    Plus _ ->
+                        return $ Just $ i1 + i2
+                    Minus _ ->
+                        return $ Just $ i1 - i2
+            _ ->
+                return Nothing
+
+    _ ->
+        return Nothing
+
+
+constantStr :: Expr Pos -> AS (Maybe String)
+
+constantStr expr = case expr of
+    EVar _ _ ->
+        return Nothing
+
+    EApp _ _ _->
+        return Nothing
+
+    EString _ str ->
+        return $ Just str
+
+    EAdd pos e1 op e2 ->  do
+        con1 <- constantStr e1
+        con2 <- constantStr e2
+        case (con1, con2) of
+            (Just str1, Just str2) ->
+                return $ Just $ str1 ++ str2
+            _ ->
+                return Nothing
+
+    _ ->
+        return Nothing

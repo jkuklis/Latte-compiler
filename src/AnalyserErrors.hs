@@ -297,3 +297,17 @@ msgVoidVar :: Pos -> AS ()
 msgVoidVar pos =
     addError $ "Void variable declaration!\n"
     ++ (posInfo "Declaration" pos)
+
+
+msgDivZero :: Pos -> AS ()
+
+msgDivZero pos =
+    addError $ "Dividing by zero!\n"
+    ++ (posInfo "Division" pos)
+
+
+msgModZero :: Pos -> AS ()
+
+msgModZero pos =
+    addError $ "Modulo zero!\n"
+    ++ (posInfo "Modulo" pos)
