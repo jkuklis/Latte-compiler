@@ -16,6 +16,7 @@ bnfc_binary = bnfc-176-source-position/source/dist/build/bnfc/bnfc
 latteM:
 	cp src/Latte.cf latte/Latte.cf
 	cd latte && ../$(bnfc_binary) --functor -m Latte.cf
+	# cd latte && bnfc -m Latte
 	$(MAKE) -C latte
 
 compiler:
