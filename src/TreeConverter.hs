@@ -72,174 +72,174 @@ data RelOp_ = LTH_ | LE_ | GTH_ | GE_ | EQU_ | NE_
   deriving (Eq, Ord, Show, Read)
 
 
-identRemovePos (Ident ident) = Ident_ ident
+identNoPos (Ident ident) = Ident_ ident
 
 
-progRemovePos :: Program Pos -> Program_
+progNoPos :: Program Pos -> Program_
 
-progRemovePos (Program _ defs) =
-    let defs_ = defsRemovePos defs
+progNoPos (Program _ defs) =
+    let defs_ = defsNoPos defs
     in Program_ defs_
 
 
-defsRemovePos :: [TopDef Pos] -> [TopDef_]
+defsNoPos :: [TopDef Pos] -> [TopDef_]
 
-defsRemovePos defs = map defRemovePos defs
+defsNoPos defs = map defNoPos defs
 
 
-defRemovePos :: TopDef Pos -> TopDef_
+defNoPos :: TopDef Pos -> TopDef_
 
-defRemovePos (FnDef _ fType ident args block) =
+defNoPos (FnDef _ fType ident args block) =
     let
-        fType_ = typeRemovePos fType
-        ident_ = identRemovePos ident
-        args_ = argsRemovePos args
-        block_ = blockRemovePos block
+        fType_ = typeNoPos fType
+        ident_ = identNoPos ident
+        args_ = argsNoPos args
+        block_ = blockNoPos block
     in FnDef_ fType_ ident_ args_ block_
 
 
-typesRemovePos :: [Type Pos] -> [Type_]
+typesNoPos :: [Type Pos] -> [Type_]
 
-typesRemovePos types = map typeRemovePos types
+typesNoPos types = map typeNoPos types
 
 
-typeRemovePos :: Type Pos -> Type_
+typeNoPos :: Type Pos -> Type_
 
-typeRemovePos type_ =
+typeNoPos type_ =
     case type_ of
         Int _ -> Int_
         Str _ -> Str_
         Bool _ -> Bool_
         Void _ -> Void_
         Fun _ type_ types ->
-            Fun_ (typeRemovePos type_) $ typesRemovePos types
+            Fun_ (typeNoPos type_) $ typesNoPos types
 
 
-argsRemovePos :: [Arg Pos] -> [Arg_]
+argsNoPos :: [Arg Pos] -> [Arg_]
 
-argsRemovePos args = map argRemovePos args
-
-
-argRemovePos :: Arg Pos -> Arg_
-
-argRemovePos (Arg _ type_ ident) =
-    Arg_ (typeRemovePos type_) $ identRemovePos ident
+argsNoPos args = map argNoPos args
 
 
-blockRemovePos :: Block Pos -> Block_
+argNoPos :: Arg Pos -> Arg_
 
-blockRemovePos (Block _ stmts) =
-    Block_ $ reverse $ stmtsRemovePos stmts
-
-
-stmtsRemovePos :: [Stmt Pos] -> [Stmt_]
-
-stmtsRemovePos stmts = map stmtRemovePos stmts
+argNoPos (Arg _ type_ ident) =
+    Arg_ (typeNoPos type_) $ identNoPos ident
 
 
-stmtRemovePos :: Stmt Pos -> Stmt_
+blockNoPos :: Block Pos -> Block_
 
-stmtRemovePos stmt =
+blockNoPos (Block _ stmts) =
+    Block_ $ reverse $ stmtsNoPos stmts
+
+
+stmtsNoPos :: [Stmt Pos] -> [Stmt_]
+
+stmtsNoPos stmts = map stmtNoPos stmts
+
+
+stmtNoPos :: Stmt Pos -> Stmt_
+
+stmtNoPos stmt =
     case stmt of
         Empty _ ->
             Empty_
 
         BStmt _ block ->
-            BStmt_ $ blockRemovePos block
+            BStmt_ $ blockNoPos block
 
         Decl _ type_ items ->
-            Decl_ (typeRemovePos type_) $ itemsRemovePos items
+            Decl_ (typeNoPos type_) $ itemsNoPos items
 
         Ass _ ident expr ->
-            Ass_ (identRemovePos ident) $ exprRemovePos expr
+            Ass_ (identNoPos ident) $ exprNoPos expr
 
         Incr _ ident ->
-            Incr_ $ identRemovePos ident
+            Incr_ $ identNoPos ident
 
         Decr _ ident ->
-            Decr_ $ identRemovePos ident
+            Decr_ $ identNoPos ident
 
         Ret _ expr ->
-            Ret_ $ exprRemovePos expr
+            Ret_ $ exprNoPos expr
 
         VRet _ ->
             VRet_
 
         Cond _ expr stmt ->
-            Cond_ (exprRemovePos expr) $ stmtRemovePos stmt
+            Cond_ (exprNoPos expr) $ stmtNoPos stmt
 
         CondElse _ expr stmt1 stmt2 ->
-            CondElse_ (exprRemovePos expr) (stmtRemovePos stmt1) $ stmtRemovePos stmt2
+            CondElse_ (exprNoPos expr) (stmtNoPos stmt1) $ stmtNoPos stmt2
 
         While _ expr stmt ->
-            While_ (exprRemovePos expr) $ stmtRemovePos stmt
+            While_ (exprNoPos expr) $ stmtNoPos stmt
 
         SExp _ expr ->
-            SExp_ $ exprRemovePos expr
+            SExp_ $ exprNoPos expr
 
 
-itemsRemovePos :: [Item Pos] -> [Item_]
+itemsNoPos :: [Item Pos] -> [Item_]
 
-itemsRemovePos items = map itemRemovePos items
+itemsNoPos items = map itemNoPos items
 
 
-itemRemovePos :: Item Pos -> Item_
+itemNoPos :: Item Pos -> Item_
 
-itemRemovePos item =
+itemNoPos item =
     case item of
-        NoInit _ ident -> NoInit_ $ identRemovePos ident
-        Init _ ident expr -> Init_ (identRemovePos ident) $ exprRemovePos expr
+        NoInit _ ident -> NoInit_ $ identNoPos ident
+        Init _ ident expr -> Init_ (identNoPos ident) $ exprNoPos expr
 
 
-exprsRemovePos :: [Expr Pos] -> [Expr_]
+exprsNoPos :: [Expr Pos] -> [Expr_]
 
-exprsRemovePos exprs = map exprRemovePos exprs
+exprsNoPos exprs = map exprNoPos exprs
 
 
-exprRemovePos :: Expr Pos -> Expr_
+exprNoPos :: Expr Pos -> Expr_
 
-exprRemovePos expr =
+exprNoPos expr =
     case expr of
-        EVar _ ident -> EVar_ $ identRemovePos ident
+        EVar _ ident -> EVar_ $ identNoPos ident
         ELitInt _ int -> ELitInt_ int
         ELitTrue _ -> ELitTrue_
         ELitFalse _ -> ELitFalse_
-        EApp _ ident exprs -> EApp_ (identRemovePos ident) $ exprsRemovePos exprs
+        EApp _ ident exprs -> EApp_ (identNoPos ident) $ exprsNoPos exprs
         EString _ str -> EString_ str
-        Neg _  expr -> Neg_ $ exprRemovePos expr
-        Not _  expr -> Not_ $ exprRemovePos expr
+        Neg _  expr -> Neg_ $ exprNoPos expr
+        Not _  expr -> Not_ $ exprNoPos expr
         EMul _  expr1 op expr2 ->
-            EMul_ (exprRemovePos expr1) (mulOpRemovePos op) $ exprRemovePos expr2
+            EMul_ (exprNoPos expr1) (mulOpNoPos op) $ exprNoPos expr2
         EAdd _  expr1 op expr2 ->
-            EAdd_ (exprRemovePos expr1) (addOpRemovePos op) $ exprRemovePos expr2
+            EAdd_ (exprNoPos expr1) (addOpNoPos op) $ exprNoPos expr2
         ERel _  expr1 op expr2 ->
-            ERel_ (exprRemovePos expr1) (relOpRemovePos op) $ exprRemovePos expr2
+            ERel_ (exprNoPos expr1) (relOpNoPos op) $ exprNoPos expr2
         EAnd _  expr1 expr2 ->
-            EAnd_ (exprRemovePos expr1) $ exprRemovePos expr2
+            EAnd_ (exprNoPos expr1) $ exprNoPos expr2
         EOr _  expr1 expr2 ->
-            EOr_ (exprRemovePos expr1) $ exprRemovePos expr2
+            EOr_ (exprNoPos expr1) $ exprNoPos expr2
 
 
-mulOpRemovePos :: MulOp Pos -> MulOp_
+mulOpNoPos :: MulOp Pos -> MulOp_
 
-mulOpRemovePos op =
+mulOpNoPos op =
     case op of
         Times _ -> Times_
         Div _ -> Div_
         Mod _ -> Mod_
 
 
-addOpRemovePos :: AddOp Pos -> AddOp_
+addOpNoPos :: AddOp Pos -> AddOp_
 
-addOpRemovePos op =
+addOpNoPos op =
     case op of
         Plus _ -> Plus_
         Minus _ -> Minus_
 
 
-relOpRemovePos :: RelOp Pos -> RelOp_
+relOpNoPos :: RelOp Pos -> RelOp_
 
-relOpRemovePos op =
+relOpNoPos op =
     case op of
         LTH _ -> LTH_
         LE _ -> LE_
@@ -253,6 +253,6 @@ convert :: String -> IO String
 
 convert input = do
     let (Ok prog) = pProgram $ myLexer input
-    let prog_ = progRemovePos prog
+    let prog_ = progNoPos prog
     putStrLn $ show prog_
     return input
