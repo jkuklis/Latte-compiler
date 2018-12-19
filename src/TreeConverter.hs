@@ -253,18 +253,27 @@ stmtNoPos stmt =
         Cond _ expr stmt -> do
             expr <- exprNoPos expr
             stmt <- stmtNoPos stmt
-            return $ Cond_ expr stmt
+            case expr of
+                ELitTrue_ -> return stmt
+                ELitFalse_ -> return Empty_
+                _ -> return $ Cond_ expr stmt
 
         CondElse _ expr stmt1 stmt2 -> do
             expr <- exprNoPos expr
             stmt1 <- stmtNoPos stmt1
             stmt2 <- stmtNoPos stmt2
-            return $ CondElse_ expr stmt1 stmt2
+            case expr of
+                ELitTrue_ -> return stmt1
+                ELitFalse_ -> return stmt2
+                _ -> return $ CondElse_ expr stmt1 stmt2
 
         While _ expr stmt -> do
             expr <- exprNoPos expr
-            stmt <- stmtNoPos stmt
-            return $ While_ expr stmt
+            case expr of
+                ELitFalse_ -> return Empty_
+                _ -> do
+                    stmt <- stmtNoPos stmt
+                    return $ While_ expr stmt
 
         SExp _ expr -> do
             expr <- exprNoPos expr
