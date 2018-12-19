@@ -158,31 +158,53 @@ stmtsNoPos :: [Stmt Pos] -> CS [Stmt_]
 
 stmtsNoPos stmts = do
     stmts <- mapM stmtNoPos stmts
-    mapM reduceStmt (removeStmts stmts)
+    mapM reduceStmt $ snd $ removeStmts stmts
 
 
-removeStmts :: [Stmt_] -> [Stmt_]
+removeStmts :: [Stmt_] -> (Bool, [Stmt_])
 
 removeStmts stmts =
-    reverse $ snd $ foldl gatherStmt (False, []) stmts
+    let
+        removed = foldl gatherStmt (False, []) stmts
+    in (fst removed, reverse (snd removed))
 
 
 gatherStmt :: (Bool, [Stmt_]) -> Stmt_ -> (Bool, [Stmt_])
 
-gatherStmt (ret, stmts) st =
+gatherStmt (ret, sts) st =
     if ret == True
-        then (True, stmts)
+        then (True, sts)
         else case st of
-            Empty_ -> (False, stmts)
+            Empty_ -> (False, sts)
 
-            Ret_ _ -> (True, st:stmts)
+            Ret_ _ -> (True, st:sts)
 
-            VRet_ -> (True, st:stmts)
+            VRet_ -> (True, st:sts)
 
             SExp_ expr ->
-                (False, concat [(extractApps expr), stmts])
+                (False, concat [(extractApps expr), sts])
 
-            _ -> (False, st:stmts)
+            BStmt_ (Block_ []) -> (False, sts)
+
+            BStmt_ (Block_ stmts) ->
+                let
+                    removed = removeStmts stmts
+                    ret = fst removed
+                    block = Block_ $ snd removed
+                in (ret, (BStmt_ block):sts)
+
+            Cond_ expr stmt ->
+                case snd (removeStmts [stmt]) of
+                    -- expression sexps!
+                    [] -> (False, sts)
+                    [removed] -> (False, (Cond_ expr removed):sts)
+
+            -- CondElse _ expr stmt1 stmt2 -> do
+
+
+            -- While _ expr stmt -> do
+
+            _ -> (False, st:sts)
 
 
 extractApps :: Expr_ -> [Stmt_]
