@@ -158,7 +158,52 @@ stmtsNoPos :: [Stmt Pos] -> CS [Stmt_]
 
 stmtsNoPos stmts = do
     stmts <- mapM stmtNoPos stmts
-    mapM reduceStmt stmts
+    mapM reduceStmt (removeStmts stmts)
+
+
+removeStmts :: [Stmt_] -> [Stmt_]
+
+removeStmts stmts =
+    reverse $ snd $ foldl gatherStmt (False, []) stmts
+
+
+gatherStmt :: (Bool, [Stmt_]) -> Stmt_ -> (Bool, [Stmt_])
+
+gatherStmt (ret, stmts) st =
+    if ret == True
+        then (True, stmts)
+        else case st of
+            Empty_ -> (False, stmts)
+
+            Ret_ _ -> (True, st:stmts)
+
+            VRet_ -> (True, st:stmts)
+
+            SExp_ expr ->
+                (False, concat [(extractApps expr), stmts])
+
+            _ -> (False, st:stmts)
+
+
+extractApps :: Expr_ -> [Stmt_]
+
+extractApps expr =
+    let
+        doubleExtractApps e1 e2 = concat [(extractApps e2), (extractApps e1)]
+    in case expr of
+        EVar_ _ -> []
+        ELitInt_ _ -> []
+        ELitTrue_ -> []
+        ELitFalse_ -> []
+        EApp_ _ _ -> [SExp_ expr]
+        EString_ _ -> []
+        Neg_ expr -> extractApps expr
+        Not_ expr -> extractApps expr
+        EMul_ e1 op e2 -> doubleExtractApps e1 e2
+        EAdd_ e1 op e2 -> doubleExtractApps e1 e2
+        ERel_ e1 op e2 -> doubleExtractApps e1 e2
+        EAnd_ e1 e2 -> doubleExtractApps e1 e2
+        EOr_ e1 e2 -> doubleExtractApps e1 e2
 
 
 reduceStmt :: Stmt_ -> CS Stmt_
