@@ -156,7 +156,17 @@ blockNoPos (Block _ stmts) = do
 
 stmtsNoPos :: [Stmt Pos] -> CS [Stmt_]
 
-stmtsNoPos stmts = mapM stmtNoPos stmts
+stmtsNoPos stmts = do
+    stmts <- mapM stmtNoPos stmts
+    mapM reduceStmt stmts
+
+
+reduceStmt :: Stmt_ -> CS Stmt_
+
+reduceStmt stmt =
+    case stmt of
+
+        _ -> return stmt
 
 
 stmtNoPos :: Stmt Pos -> CS Stmt_
@@ -292,8 +302,12 @@ exprNoPos expr =
             op <- mulOpNoPos oper
             case op of
                 Times_ -> case (e1, e2) of
-                    -- (ELitInt_ 0, _) -> return $ ELitInt_ 0    -- can't be used cause of
-                    -- (_, ELitInt_ 0) -> return $ ELitInt_ 0    -- additional function effects
+                    -- add functions to invoke!
+                    (ELitInt_ 0, _) ->
+                        return $ ELitInt_ 0
+
+                    (_, ELitInt_ 0) ->
+                        return $ ELitInt_ 0
 
                     (ELitInt_ 1, _) ->
                         return e2
@@ -303,27 +317,6 @@ exprNoPos expr =
 
                     (ELitInt_ int1, ELitInt_ int2) ->
                         return $ ELitInt_ $ int1 * int2
-
-                    (ELitInt_ int1, EMul_ (ELitInt_ int2) Times_ e2) ->
-                        return $ EMul_ (ELitInt_ (int1 * int2)) Times_ e2
-
-                    (ELitInt_ int1, _) ->
-                        return $ EMul_ e1 Times_ e2
-
-                    (EMul_ (ELitInt_ int1) Times_ e1, ELitInt_ int2) ->
-                        return $ EMul_ (ELitInt_ (int1 * int2)) Times_ e1
-
-                    (_, ELitInt_ int2) ->
-                        return $ EMul_ e2 Times_ e1
-
-                    (EMul_ (ELitInt_ int1) Times_ e1, EMul_ (ELitInt_ int2) Times_ e2) ->
-                        return $ EMul_ (ELitInt_ (int1 * int2)) Times_ $ EMul_ e1 Times_ e2
-
-                    (EMul_ i1@(ELitInt_ int1) Times_ e12, _) ->
-                        return $ EMul_ i1 Times_ $ EMul_ e12 Times_ e2
-
-                    (_, EMul_ i2@(ELitInt_ int2) Times_ e22) ->
-                        return $ EMul_ i2 Times_ $ EMul_ e1 Times_ e22
 
                     (_, _) ->
                         return $ EMul_ e1 Times_ e2
@@ -339,6 +332,9 @@ exprNoPos expr =
                         return $ EMul_ e1 op e2
 
                 Mod_ -> case (e1, e2) of
+                    (_, ELitInt_ 1) ->
+                        return $ ELitInt_ 0
+
                     (ELitInt_ int1, ELitInt_ int2) ->
                         return $ ELitInt_ (int1 `mod` int2)
 
@@ -350,26 +346,96 @@ exprNoPos expr =
             e2 <- exprNoPos expr2
             op <- addOpNoPos oper
             case op of
-                Plus_ ->
-                    return $ EAdd_ e1 op e2
-                Minus_ ->
-                    return $ EAdd_ e1 op e2
+                Plus_ -> case (e1, e2) of
+                    (ELitInt_ int1, ELitInt_ int2) ->
+                        return $ ELitInt_ $ int1 + int2
+
+                    (EString_ str1, EString_ str2) ->
+                        return $ EString_ $ str1 ++ str2
+
+                    (_, _) ->
+                        return $ EAdd_ e1 op e2
+                Minus_ -> case (e1, e2) of
+                    (ELitInt_ int1, ELitInt_ int2) ->
+                        return $ ELitInt_ $ int1 - int2
+
+                    (_, _) ->
+                        return $ EAdd_ e1 op e2
 
         ERel _ expr1 oper expr2 -> do
+            let
+                rel int1 op int2 = case op of
+                    LTH_ -> int1 < int2
+                    LE_ -> int1 <= int2
+                    GTH_ -> int1 > int2
+                    GE_ -> int1 >= int2
             e1 <- exprNoPos expr1
             e2 <- exprNoPos expr2
             op <- relOpNoPos oper
-            return $ ERel_ e1 op e2
+            case (e1, e2) of
+                (ELitInt_ int1, ELitInt_ int2) ->
+                    if rel int1 op int2
+                        then return ELitTrue_
+                        else return ELitFalse_
+
+                (ELitTrue_, ELitTrue_) -> case op of
+                    EQU_ -> return ELitTrue_
+                    NE_ -> return ELitFalse_
+
+                (ELitFalse_, ELitTrue_) -> case op of
+                    EQU_ -> return ELitFalse_
+                    NE_ -> return ELitTrue_
+
+                (ELitTrue_, ELitFalse_) -> case op of
+                    EQU_ -> return ELitFalse_
+                    NE_ -> return ELitTrue_
+
+                (ELitFalse_, ELitFalse_) -> case op of
+                    EQU_ -> return ELitTrue_
+                    NE_ -> return ELitFalse_
+
+                (EString_ str1, EString_ str2) -> case op of
+                    EQU_ -> if str1 == str2
+                        then return ELitTrue_
+                        else return ELitFalse_
+                    NE_ -> if str1 == str2
+                        then return ELitFalse_
+                        else return ELitTrue_
+
+                (_, _) ->
+                    return $ ERel_ e1 op e2
 
         EAnd _ expr1 expr2 -> do
             e1 <- exprNoPos expr1
             e2 <- exprNoPos expr2
-            return $ EAnd_ e1 e2
+            case (e1, e2) of
+                (ELitTrue_, ELitTrue_) ->
+                    return ELitTrue_
+
+                (ELitFalse_, _) ->
+                    return ELitFalse_
+
+                (_, ELitFalse_) ->
+                    return ELitFalse_
+
+                (_, _) ->
+                    return $ EAnd_ e1 e2
 
         EOr _ expr1 expr2 -> do
             e1 <- exprNoPos expr1
             e2 <- exprNoPos expr2
-            return $ EOr_ e1 e2
+            case (e1, e2) of
+                (ELitFalse_, ELitFalse_) ->
+                    return ELitFalse_
+
+                (ELitTrue_, _) ->
+                    return ELitTrue_
+
+                (_, ELitTrue_) ->
+                    return ELitTrue_
+
+                (_, _) ->
+                    return $ EOr_ e1 e2
 
 
 mulOpNoPos :: MulOp Pos -> CS MulOp_
