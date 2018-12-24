@@ -295,27 +295,30 @@ stmtNoPos stmt =
 
         Cond _ expr stmt -> do
             expr <- exprNoPos expr
+            apps <- getApps
             stmt <- stmtNoPos stmt
             case expr of
-                ELitTrue_ -> return stmt
-                ELitFalse_ -> return [Empty_]
-                _ -> return [Cond_ expr (singleStmt stmt)]
+                ELitTrue_ -> return $ concat [apps, stmt]
+                ELitFalse_ -> return $ concat [apps, [Empty_]]
+                _ -> return $ concat [apps, [Cond_ expr (singleStmt stmt)]]
 
         CondElse _ expr stmt1 stmt2 -> do
             expr <- exprNoPos expr
+            apps <- getApps
             stmt1 <- stmtNoPos stmt1
             stmt2 <- stmtNoPos stmt2
             case expr of
-                ELitTrue_ -> return stmt1
-                ELitFalse_ -> return stmt2
-                _ -> return [CondElse_ expr (singleStmt stmt1) (singleStmt stmt2)]
+                ELitTrue_ -> return $ concat [apps, stmt1]
+                ELitFalse_ -> return $ concat [apps, stmt2]
+                _ -> return $ concat [apps, [CondElse_ expr (singleStmt stmt1) (singleStmt stmt2)]]
 
         While _ expr stmt -> do
             expr <- exprNoPos expr
+            apps <- getApps
             stmt <- stmtNoPos stmt
             case expr of
-                ELitFalse_ -> return [Empty_]
-                _ -> return [While_ expr (singleStmt stmt)]
+                ELitFalse_ -> return $ concat [apps, [Empty_]]
+                _ -> return [While_ expr (singleStmt (concat [apps, stmt]))]
 
         SExp _ expr -> do
             expr <- exprNoPos expr
@@ -420,7 +423,7 @@ exprNoPos expr =
                         return $ ELitInt_ 0
 
                     (_, ELitInt_ 0) -> do
-                        gatherApps e2
+                        gatherApps e1
                         return $ ELitInt_ 0
 
                     (ELitInt_ 1, _) ->
