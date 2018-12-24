@@ -160,7 +160,7 @@ stmtsNoPos :: [Stmt Pos] -> CS [Stmt_]
 
 stmtsNoPos stmts = do
     stmts <- mapM stmtNoPos stmts
-    mapM reduceStmt $ snd $ removeStmts stmts
+    mapM reduceStmt $ snd $ removeStmts $ concat stmts
 
 
 removeStmts :: [Stmt_] -> (Bool, [Stmt_])
@@ -257,49 +257,49 @@ reduceStmt stmt =
         _ -> return stmt
 
 
-stmtNoPos :: Stmt Pos -> CS Stmt_
+stmtNoPos :: Stmt Pos -> CS [Stmt_]
 
 stmtNoPos stmt =
     case stmt of
         Empty _ ->
-            return Empty_
+            return [Empty_]
 
         BStmt _ block -> do
             block <- blockNoPos block
-            return $ BStmt_ block
+            return [BStmt_ block]
 
         Decl _ type_ items -> do
             type_ <- typeNoPos type_
             items <- itemsNoPos items
-            return $ Decl_ type_ items
+            return [Decl_ type_ items]
 
         Ass _ ident expr -> do
             ident <- identNoPos ident
             expr <- exprNoPos expr
-            return $ Ass_ ident expr
+            return [Ass_ ident expr]
 
         Incr _ ident -> do
             ident <- identNoPos ident
-            return $ Incr_ ident
+            return [Incr_ ident]
 
         Decr _ ident -> do
             ident <- identNoPos ident
-            return $ Decr_ ident
+            return [Decr_ ident]
 
         Ret _ expr -> do
             expr <- exprNoPos expr
-            return $ Ret_ expr
+            return [Ret_ expr]
 
         VRet _ ->
-            return VRet_
+            return [VRet_]
 
         Cond _ expr stmt -> do
             expr <- exprNoPos expr
             stmt <- stmtNoPos stmt
             case expr of
                 ELitTrue_ -> return stmt
-                ELitFalse_ -> return Empty_
-                _ -> return $ Cond_ expr stmt
+                ELitFalse_ -> return [Empty_]
+                _ -> return [Cond_ expr (singleStmt stmt)]
 
         CondElse _ expr stmt1 stmt2 -> do
             expr <- exprNoPos expr
@@ -308,21 +308,26 @@ stmtNoPos stmt =
             case expr of
                 ELitTrue_ -> return stmt1
                 ELitFalse_ -> return stmt2
-                _ -> return $ CondElse_ expr stmt1 stmt2
+                _ -> return [CondElse_ expr (singleStmt stmt1) (singleStmt stmt2)]
 
         While _ expr stmt -> do
             expr <- exprNoPos expr
+            stmt <- stmtNoPos stmt
             case expr of
-                ELitFalse_ -> return Empty_
-                _ -> do
-                    stmt <- stmtNoPos stmt
-                    return $ While_ expr stmt
+                ELitFalse_ -> return [Empty_]
+                _ -> return [While_ expr (singleStmt stmt)]
 
         SExp _ expr -> do
             expr <- exprNoPos expr
             gatherApps expr
-            apps <- getApps
-            return $ SExp_ expr
+            getApps
+
+
+singleStmt :: [Stmt_] -> Stmt_
+
+singleStmt stmts = case stmts of
+    [singleSt] -> singleSt
+    _ -> BStmt_ $ Block_ stmts
 
 
 getApps :: CS [Stmt_]
@@ -330,7 +335,7 @@ getApps :: CS [Stmt_]
 getApps = do
     apps <- gets apps
     modify $ \s -> s { apps = [] }
-    return apps
+    return $ reverse apps
 
 
 itemsNoPos :: [Item Pos] -> CS [Item_]
