@@ -4,6 +4,7 @@ import System.Exit (exitFailure, exitSuccess)
 
 import Analyser (analyse)
 import TreeConverter (convert)
+import Compiler (compile)
 
 main = do
     input <- getContents
@@ -11,5 +12,6 @@ main = do
     if not continue
         then exitFailure
         else do
-            convert input
+            prog <- convert input
+            compile prog
             exitSuccess
