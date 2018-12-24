@@ -79,8 +79,121 @@ addBlock (Block_ stmts) = addStmts stmts
 
 addStmts :: [Stmt_] -> CS ()
 
-addStmts [] = return ()
+addStmts stmts = forM_ stmts addStmt
 
-addStmts (stmt:stmts) =
+
+addStmt :: Stmt_ -> CS ()
+
+addStmt stmt = do
     case stmt of
+        Empty_ -> return ()
+
+        BStmt_ block -> do
+            (loc, out) <- moveVars
+            addBlock block
+            setVars (loc, out)
+
+        Decl_ type_ items ->
+            addDecls type_ items
+
+        Ass_ ident expr ->
+            addAss ident expr
+
+        Incr_ ident ->
+            incr ident 1
+
+        Decr_ ident ->
+            incr ident (-1)
+
+
         _ -> return ()
+
+
+moveVars :: CS (VarMap, VarMap)
+
+moveVars = do
+    loc <- gets locVars
+    out <- gets outVars
+    forM_ (M.toList loc) addOutVar
+    clearLoc
+    return (loc, out)
+
+
+addOutVar :: (String, String) -> CS ()
+
+addOutVar (name, pos) =
+    modify $ \s -> s { outVars = M.insert name pos (outVars s) }
+
+
+setVars :: (VarMap, VarMap) -> CS ()
+
+setVars (loc, out) =
+    modify $ \s -> s { locVars = loc, outVars = out }
+
+
+clearLoc :: CS ()
+
+clearLoc =
+    modify $ \s -> s { locVars = M.empty }
+
+
+addDecls :: Type_ -> [Item_] -> CS ()
+
+addDecls type_ items = forM_ items $ addDecl type_
+
+
+getVar :: String -> CS String
+
+getVar ident = do
+    loc <- gets $ M.lookup ident . locVars
+    case loc of
+        Just pos -> return pos
+        Nothing -> do
+            Just pos <- gets $ M.lookup ident . outVars
+            return pos
+
+
+addLocalVar :: String -> String -> CS ()
+
+addLocalVar ident pos =
+    modify $ \s -> s { locVars = M.insert ident pos (locVars s) }
+
+
+addDecl :: Type_ -> Item_ -> CS ()
+
+addDecl type_ item =
+    case item of
+        NoInit_ (Ident_ ident) -> case type_ of
+            -- TODO
+            Str_ -> addLocalVar ident ""
+            --
+            Int_ -> addLocalVar ident "$0"
+            Bool_ -> addLocalVar ident "$0"
+
+        Init_ (Ident_ ident) expr -> do
+            res <- addExpr expr
+            addLocalVar ident res
+
+
+addExpr :: Expr_ -> CS String
+
+addExpr expr =
+    case expr of
+        EVar_ (Ident_ eIdent) -> getVar eIdent
+        ELitInt_ int -> return $ "$" ++ (show int)
+        ELitTrue_ -> return "$1"
+        ELitFalse_ -> return "$0"
+        EString_ str -> return str
+
+
+addAss :: Ident_ -> Expr_ -> CS ()
+
+addAss (Ident_ ident) expr = do
+    res <- addExpr expr
+    addLocalVar ident res
+
+
+incr :: Ident_ -> Integer -> CS ()
+
+incr (Ident_ ident) int =
+    return ()
