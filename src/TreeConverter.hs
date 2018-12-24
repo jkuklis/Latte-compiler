@@ -75,14 +75,16 @@ data RelOp_ = LTH_ | LE_ | GTH_ | GE_ | EQU_ | NE_
 
 data ConverterState = ConverterState {
     funs :: S.Set Ident_,
-    vars :: S.Set Ident_
+    vars :: S.Set Ident_,
+    apps :: [Stmt_]
     } deriving Show
 
 
 startState = ConverterState {
     funs = S.empty,
-    vars = S.empty
-}
+    vars = S.empty,
+    apps = []
+    }
 
 type CS a = State ConverterState a
 
@@ -214,13 +216,13 @@ gatherStmt (ret, sts) st =
 
             While_ expr stmt ->
                 let
-                    rem = removeStmts [stmt]
-                    (ret, stmt) = case snd rem of
+                    removed = removeStmts [stmt]
+                    (returned, newSt) = case snd removed of
                         [] -> (False, Empty_)
-                        [removed] -> (fst rem, removed)
+                        [remSt] -> (fst removed, remSt)
                 in case expr of
-                    ELitTrue_ -> (ret, stmt:sts)
-                    _ -> (False, stmt:sts)
+                    ELitTrue_ -> (returned, newSt:sts)
+                    _ -> (False, newSt:sts)
 
             _ -> (False, st:sts)
 
@@ -246,11 +248,12 @@ extractApps expr =
         EOr_ e1 e2 -> doubleExtractApps e1 e2
 
 
+-- TODO: remove unnecessary declarations and definitions
+
 reduceStmt :: Stmt_ -> CS Stmt_
 
 reduceStmt stmt =
     case stmt of
-
         _ -> return stmt
 
 
@@ -317,7 +320,17 @@ stmtNoPos stmt =
 
         SExp _ expr -> do
             expr <- exprNoPos expr
+            gatherApps expr
+            apps <- getApps
             return $ SExp_ expr
+
+
+getApps :: CS [Stmt_]
+
+getApps = do
+    apps <- gets apps
+    modify $ \s -> s { apps = [] }
+    return apps
 
 
 itemsNoPos :: [Item Pos] -> CS [Item_]
@@ -397,10 +410,12 @@ exprNoPos expr =
             case op of
                 Times_ -> case (e1, e2) of
                     -- add functions to invoke!
-                    (ELitInt_ 0, _) ->
+                    (ELitInt_ 0, _) -> do
+                        gatherApps e2
                         return $ ELitInt_ 0
 
-                    (_, ELitInt_ 0) ->
+                    (_, ELitInt_ 0) -> do
+                        gatherApps e2
                         return $ ELitInt_ 0
 
                     (ELitInt_ 1, _) ->
@@ -426,7 +441,8 @@ exprNoPos expr =
                         return $ EMul_ e1 op e2
 
                 Mod_ -> case (e1, e2) of
-                    (_, ELitInt_ 1) ->
+                    (_, ELitInt_ 1) -> do
+                        gatherApps e2
                         return $ ELitInt_ 0
 
                     (ELitInt_ int1, ELitInt_ int2) ->
@@ -463,6 +479,8 @@ exprNoPos expr =
                     LE_ -> int1 <= int2
                     GTH_ -> int1 > int2
                     GE_ -> int1 >= int2
+                    EQU_ -> int1 == int2
+                    NE_ -> int1 /= int2
             e1 <- exprNoPos expr1
             e2 <- exprNoPos expr2
             op <- relOpNoPos oper
@@ -530,6 +548,25 @@ exprNoPos expr =
 
                 (_, _) ->
                     return $ EOr_ e1 e2
+
+
+gatherApps :: Expr_ -> CS ()
+
+gatherApps expr =
+    let doubleGatherApps e1 e2 = do
+        gatherApps e1
+        gatherApps e2
+    in case expr of
+    EApp_ _ _ ->
+        modify $ \s -> s { apps = (SExp_ expr) : (apps s) }
+    Neg_ expr -> gatherApps expr
+    Not_ expr -> gatherApps expr
+    EMul_ e1 _ e2 -> doubleGatherApps e1 e2
+    EAdd_ e1 _ e2 -> doubleGatherApps e1 e2
+    ERel_ e1 _ e2 -> doubleGatherApps e1 e2
+    EAnd_ e1 e2 -> doubleGatherApps e1 e2
+    EOr_ e1 e2 -> doubleGatherApps e1 e2
+    _ -> return ()
 
 
 mulOpNoPos :: MulOp Pos -> CS MulOp_

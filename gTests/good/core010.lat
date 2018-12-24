@@ -12,8 +12,8 @@ int fac (int a) {
   n = a;
   while (n > 0)
   {
-    r = r * n;
-    n = n - 1;
+ //   r = r * n;
+ //   n = n - 1;
   }
   return r;
 }
