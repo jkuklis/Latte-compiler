@@ -199,10 +199,28 @@ gatherStmt (ret, sts) st =
                     [] -> (False, sts)
                     [removed] -> (False, (Cond_ expr removed):sts)
 
-            -- CondElse _ expr stmt1 stmt2 -> do
+            CondElse_ expr stmt1 stmt2 ->
+                let
+                    rem1 = removeStmts [stmt1]
+                    rem2 = removeStmts [stmt2]
+                in case (snd rem1, snd rem2) of
+                    ([], []) -> (False, sts)
+                    ([], [r2]) -> (False, (Cond_ (Not_ expr) r2):sts)
+                    ([r1], []) -> (False, (Cond_ expr r1):sts)
+                    ([r1], [r2]) ->
+                        let
+                            ret = (fst rem1) && (fst rem2)
+                        in (ret, (CondElse_ expr r1 r2):sts)
 
-
-            -- While _ expr stmt -> do
+            While_ expr stmt ->
+                let
+                    rem = removeStmts [stmt]
+                    (ret, stmt) = case snd rem of
+                        [] -> (False, Empty_)
+                        [removed] -> (fst rem, removed)
+                in case expr of
+                    ELitTrue_ -> (ret, stmt:sts)
+                    _ -> (False, stmt:sts)
 
             _ -> (False, st:sts)
 
