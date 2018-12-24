@@ -3,28 +3,25 @@ module Compiler where
 import Control.Monad.State
 
 import AbstractTree
-
-
-data CompilerState = CompilerState {
-    code :: [String]
-    }
-
-type CS a = State CompilerState a
-
-startState = CompilerState {
-    code = []
-    }
+import CompilerUtility
 
 
 compDefs :: [TopDef_] -> CS ()
 
-compDefs defs =
-    return ()
+compDefs defs = forM_ defs compDef
+
+compDef :: TopDef_ -> CS ()
+
+compDef (FnDef_ type_ ident args block) = do
+    addFun ident
+    addArgs args
+
 
 
 compile :: Program_ -> IO ()
 
 compile (Program_ defs) = do
     -- putStrLn $ show prog
-    let a = evalState (compDefs defs) startState
-    return ()
+    let state = execState (compDefs defs) startState
+    putStrLn $ show state
+    putStrLn $ unlines $ reverse $ code state
