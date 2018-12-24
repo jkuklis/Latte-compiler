@@ -19,9 +19,12 @@ data CompilerState = CompilerState {
 
 type CS a = State CompilerState a
 
-registers =
-    ["rax", "rcx", "rdx",
-        "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11"]
+-- registers =
+--     ["rax", "rcx", "rdx",
+--         "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11"]
+
+registers = ["eax", "ecx", "edx"] -- , "ebx", "esi", "edi]
+
 
 startState = CompilerState {
     code = [],
@@ -36,19 +39,21 @@ addFun (Ident_ ident) =
     let
         globl = "\n.globl " ++ ident
         fun = ident ++ ":"
-        rbp = "\tpushq    %rbp"
-        rsp = "\tmovq     %rsp, %rbp"
+        ebp = "\tpushl    %ebp"
+        esp = "\tmovl     %esp, %ebp"
         stack = "..stack_holder"
-        prolog = reverse [globl, fun, rbp, rsp, stack]
+        prolog = reverse [globl, fun, ebp, esp, stack]
 
     in modify $ \s -> s { code = concat [prolog, (code s)] }
 
 
 addArgs :: [Arg_] -> CS ()
 
-addArgs args = forM_ args addArg
+addArgs args = do
+    foldM addArg 8 args
+    return ()
 
 
-addArg :: Arg_ -> CS ()
+addArg :: Integer -> Arg_ -> CS Integer
 
-addArg arg = return ()
+addArg pos arg = return $ pos + 4
