@@ -1,8 +1,11 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module CompilerUtility where
 
 import Control.Monad.State
 
 import qualified Data.Map as M
+import qualified Data.List as L
 
 import AbstractTree
 
@@ -21,7 +24,7 @@ data CompilerState = CompilerState {
 
 type CS a = State CompilerState a
 
--- registers =
+-- registers name pattern = definition
 --     ["rax", "rcx", "rdx",
 --         "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11"]
 
@@ -45,12 +48,29 @@ addFun (Ident_ ident) =
     let
         globl = "\n.globl " ++ ident
         fun = ident ++ ":"
-        stackPtr = "\tpushl    %" ++ stack
-        framePtr = "\tmovl     %" ++ frame ++ ", %" ++ stack
+        stackPtr = "\tpush\t%" ++ stack
+        framePtr = "\tmovl\t%" ++ frame ++ ", %" ++ stack
         stackOff = "..stack_holder"
         prolog = reverse [globl, fun, stackPtr, framePtr, stackOff]
 
     in modify $ \s -> s { code = concat [prolog, (code s)] }
+
+
+moveFrame :: CS ()
+
+moveFrame = do
+    stackHeight <- gets stackEnd
+    lines <- gets code
+    let
+        reminder = stackHeight `mod` 16
+        frame = if reminder == 0
+            then stackHeight
+            else stackHeight - reminder + 16
+        line = if frame == 0
+            then ""
+            else "\tsubl\t$" ++ (show frame) ++ ", %esp"
+        repLines = map (\l -> if l == "..stack_holder" then line else l) lines
+    modify $ \s -> s { code = repLines }
 
 
 addArgs :: [Arg_] -> CS ()
@@ -107,8 +127,45 @@ addStmt stmt = do
         Decr_ ident ->
             incr ident (-1)
 
+        Ret_ expr ->
+            exprRet expr
+
+        VRet_ ->
+            voidRet
 
         _ -> return ()
+
+
+checkVoidRet :: Type_ -> CS ()
+
+checkVoidRet type_ = do
+    (line:lines) <- gets code
+    if (type_ == Void_) && (not ("\tret" `L.isPrefixOf` line))
+        then voidRet
+        else return ()
+
+
+voidRet :: CS ()
+
+voidRet =
+    let
+        leave = "\tleave"
+        ret = "\tret"
+    in modify $ \s -> s { code = ret : (leave : (code s)) }
+
+
+exprRet :: Expr_ -> CS ()
+
+exprRet expr = do
+    pos <- addExpr expr
+    let
+        line = "\tmovl\t" ++ pos ++ ", %eax"
+        leave = "\tleave"
+        ret = "\tret"
+        newLines = if pos == "%eax"
+            then reverse [leave, ret]
+            else reverse [line, leave, ret]
+    modify $ \s -> s { code = concat [newLines, (code s)] }
 
 
 moveVars :: CS (VarMap, VarMap)
