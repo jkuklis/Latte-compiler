@@ -7,7 +7,7 @@ import qualified Data.Map as M
 import AbstractTree
 
 
-type RegMap = M.Map String Bool
+type RegMap = M.Map String (Maybe String)
 
 type VarMap = M.Map String String
 
@@ -15,7 +15,8 @@ data CompilerState = CompilerState {
     code :: [String],
     regs :: RegMap,
     locVars :: VarMap,
-    outVars :: VarMap
+    outVars :: VarMap,
+    stackEnd :: Integer
     } deriving Show
 
 type CS a = State CompilerState a
@@ -25,7 +26,7 @@ type CS a = State CompilerState a
 --         "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11"]
 
 registers = ["eax", "ecx", "edx"] -- , "ebx", "esi", "edi]
-registersMap = foldr (\reg m -> M.insert reg True m) M.empty registers
+registersMap = foldr (\reg m -> M.insert reg Nothing m) M.empty registers
 stack = "ebp"
 frame = "esp"
 
@@ -33,7 +34,8 @@ startState = CompilerState {
     code = [],
     regs = registersMap,
     locVars = M.empty,
-    outVars = M.empty
+    outVars = M.empty,
+    stackEnd = 0
     }
 
 
@@ -195,5 +197,63 @@ addAss (Ident_ ident) expr = do
 
 incr :: Ident_ -> Integer -> CS ()
 
-incr (Ident_ ident) int =
-    return ()
+incr (Ident_ ident) int = do
+    var <- getVar ident
+    case var of
+        '$':prevInt ->
+            addLocalVar ident $ "$" ++ (show ((read prevInt :: Integer) + int))
+        _ -> do
+            singleOccurence <- checkMultiple ident var
+            let instr = if int == 1
+                then "incl"
+                else "decl"
+            if singleOccurence
+                then emitSingle instr var
+                else do
+                    pos <- addStack ident
+                    emitSingle instr pos
+
+
+addStack :: String -> CS String
+
+addStack ident = do
+    modify $ \s -> s { stackEnd = (stackEnd s + 4) }
+    loc <- gets $ M.lookup ident . locVars
+    offset <- gets stackEnd
+    let pos = (show offset) ++ "(%ebp)"
+    case loc of
+        Just pos -> modify $ \s -> s { locVars = M.insert ident pos (locVars s) }
+        Nothing -> modify $ \s -> s { outVars = M.insert ident pos (outVars s) }
+    return pos
+
+
+emitSingle :: String -> String -> CS ()
+
+emitSingle instr var =
+    let line = "\t" ++ instr ++ "\tvar"
+    in modify $ \s -> s { code = line : (code s) }
+
+
+-- findAvailable :: CS String
+--
+-- findAvailable = do
+--     let pred (k, v) = v == Nothing
+--     registers <- gets regs
+--     case filter pred $ M.toList registers of
+--         reg:regs -> return reg
+--         [] -> do
+--             Just var <- M.lookup "%eax" registers
+--
+--             return "eax"
+--
+
+checkMultiple :: String -> String -> CS Bool
+
+checkMultiple ident pos = do
+    let pred (k, v) = (k /= ident) && (pos == v)
+    loc <- gets locVars
+    out <- gets outVars
+    let
+        filteredLoc = filter pred $ M.toList loc
+        filteredOut = filter pred $ M.toList out
+    return $ (filteredLoc == []) && (filteredOut == [])

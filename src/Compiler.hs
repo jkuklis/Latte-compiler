@@ -22,7 +22,7 @@ compDef (FnDef_ type_ ident args block) = do
 compile :: Program_ -> IO ()
 
 compile (Program_ defs) = do
-    -- putStrLn $ show prog
+    -- putStrLn $ show defs
     let state = execState (compDefs defs) startState
     putStrLn $ show state
     putStrLn $ unlines $ reverse $ code state
