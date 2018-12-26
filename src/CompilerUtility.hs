@@ -242,7 +242,49 @@ addExpr expr =
         ELitInt_ int -> return $ "$" ++ (show int)
         ELitTrue_ -> return "$1"
         ELitFalse_ -> return "$0"
+        -- EApp_ _ _ ->
         EString_ str -> return str
+        Neg_ expr -> do
+            res <- addExpr expr
+            emitNeg res
+        Not_ expr -> do
+            res <- addExpr expr
+            emitNot res
+        -- EMul_ e1 op e2 -> doubleExtractApps e1 e2
+        -- EAdd_ e1 op e2 -> doubleExtractApps e1 e2
+        -- ERel_ e1 op e2 -> doubleExtractApps e1 e2
+        -- EAnd_ e1 e2 -> doubleExtractApps e1 e2
+        -- EOr_ e1 e2
+
+
+addLines :: [String] -> CS ()
+
+addLines toAdd =
+    modify $ \s -> s { code = concat [toAdd, (code s)] }
+
+
+emitNeg :: String -> CS String
+
+emitNeg res = do
+    let
+        negLines = case res of
+            ('%':_) -> ["\tmull\t$-1, " ++ (show res)]
+            _ ->
+                let
+                    toReg = "\tmovl\t" ++ res ++ ", %eax"
+                    mulLine = "\timull\t$-1, %eax"
+                in reverse [toReg, mulLine]
+    addLines negLines
+    return "%eax"
+
+
+emitNot :: String -> CS String
+
+emitNot res = do
+    case res of
+        "$0" -> return "$1"
+        "$1" -> return "$0"
+        -- _ ->
 
 
 addAss :: Ident_ -> Expr_ -> CS ()
