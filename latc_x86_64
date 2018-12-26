@@ -30,6 +30,6 @@ if [ $ret -ne 0 ]; then
     exit $ret
 fi
 
-# gcc $assemblyFile -o "${execFile}"
+# gcc -m32 $assemblyFile build/runtime.s -o "${execFile}"
 
 exit 0

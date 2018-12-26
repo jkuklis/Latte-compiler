@@ -1,6 +1,6 @@
 all: compiler
 
-true_all: latteM compiler rights
+true_all: latteM runtime compiler rights
 
 bnfc_download:
 	wget https://github.com/mlazowik/bnfc/archive/176-source-position.zip
@@ -18,6 +18,9 @@ latteM:
 	cd latte && ../$(bnfc_binary) --functor -m Latte.cf
 	# cd latte && bnfc -m Latte
 	$(MAKE) -C latte
+
+runtime:
+	gcc -m32 -o build/runtime.s src/runtime.c
 
 compiler:
 	ghc src/Main.hs -o build/Compiler -odir build -isrc -ilatte
