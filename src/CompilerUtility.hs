@@ -239,8 +239,10 @@ addExpr expr =
         ELitInt_ int -> return $ "$" ++ (show int)
         ELitTrue_ -> return "$1"
         ELitFalse_ -> return "$0"
-        EApp_ ident args -> do
-            return ""
+        EApp_ (Ident_ fIdent) exprs -> do
+            pushArgs exprs
+            emitSingle "call" fIdent
+            return "%eax"
 
         EString_ str -> return str
         Neg_ expr -> do
@@ -299,6 +301,7 @@ strictMovl pos res =
             emitDouble "movl" pos res
             return res
 
+
 chooseReg :: String -> String -> String -> CS (String, String)
 
 chooseReg pos1 pos2 def =
@@ -309,6 +312,18 @@ chooseReg pos1 pos2 def =
             _ -> do
                 res <- tryMovl pos1 def
                 return (res, pos2)
+
+
+pushArgs :: [Expr_] -> CS ()
+
+pushArgs exprs = forM_ exprs pushArg
+
+
+pushArg :: Expr_ -> CS ()
+
+pushArg expr = do
+    res <- addExpr expr
+    emitSingle "push" res
 
 
 emitMul ::  String -> MulOp_ -> String -> CS String
