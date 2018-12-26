@@ -135,7 +135,18 @@ addStmt stmt = do
         VRet_ ->
             voidRet
 
-        _ -> return ()
+        Cond_ expr stmt ->
+            addCond expr stmt
+
+        CondElse_ expr stmt1 stmt2 ->
+            addCondElse expr stmt1 stmt2
+
+        While_ expr stmt ->
+            addWhile expr stmt
+
+        SExp_ expr -> do
+            addExpr expr
+            return ()
 
 
 checkVoidRet :: Type_ -> CS ()
@@ -193,6 +204,51 @@ clearLoc =
     modify $ \s -> s { locVars = M.empty }
 
 
+addLabel :: String -> CS ()
+
+addLabel label = addLines [label ++ ":"]
+
+
+addCond :: Expr_ -> Stmt_ -> CS ()
+
+addCond expr stmt = do
+    label <- nextLabel
+    res <- addExpr expr
+    emitDouble "cmp" "$0" res
+    emitSingle "je" label
+    addStmt stmt
+    addLabel label
+
+
+addCondElse :: Expr_ -> Stmt_ -> Stmt_ -> CS ()
+
+addCondElse expr stmt1 stmt2 = do
+    lTrue <- nextLabel
+    lEnd <- nextLabel
+    res <- addExpr expr
+    emitDouble "cmp" "$0" res
+    emitSingle "je" lTrue
+    addStmt stmt2
+    emitSingle "jmp" lEnd
+    addLabel lTrue
+    addStmt stmt1
+    addLabel lEnd
+
+
+addWhile :: Expr_ -> Stmt_ -> CS ()
+
+addWhile expr stmt = do
+    lBody <- nextLabel
+    lCond <- nextLabel
+    emitSingle "jmp" lCond
+    addLabel lBody
+    addStmt stmt
+    addLabel lCond
+    res <- addExpr expr
+    emitDouble "cmp" "$1" res
+    emitSingle "je" lBody
+
+
 addDecls :: Type_ -> [Item_] -> CS ()
 
 addDecls type_ items = forM_ items $ addDecl type_
@@ -219,12 +275,14 @@ addDecl :: Type_ -> Item_ -> CS ()
 
 addDecl type_ item =
     case item of
-        NoInit_ (Ident_ ident) -> case type_ of
-            -- TODO
-            Str_ -> addLocalVar ident "TODO"
-            --
-            Int_ -> addLocalVar ident "$0"
-            Bool_ -> addLocalVar ident "$0"
+        NoInit_ (Ident_ ident) -> do
+            pos <- addStack ident
+            case type_ of
+                -- TODO
+                Str_ -> emitDouble "movl" "$0" pos
+                --
+                Int_ -> emitDouble "movl" "$0" pos
+                Bool_ -> emitDouble "movl" "$0" pos
 
         Init_  ident expr -> do
             addDecl type_ (NoInit_ ident)
@@ -363,21 +421,20 @@ emitAdd pos1 op pos2 =
             return res
 
 
-nextLabel :: CS Integer
+nextLabel :: CS String
 
 nextLabel = do
     count <- gets labelsCount
     modify $ \s -> s { labelsCount = labelsCount s + 1 }
-    return count
+    return $ ".L" ++ (show count)
 
 
 emitRel :: String -> RelOp_ -> String -> CS String
 
 emitRel pos1 op pos2 = do
-    count <- nextLabel
+    label <- nextLabel
     let
         res = "%eax"
-        label = ".L" ++ (show count)
         instr = case op of
             LTH_ -> "jl"
             LE_ -> "jle"
@@ -390,7 +447,7 @@ emitRel pos1 op pos2 = do
     emitDouble "cmp" pos1 helper
     emitSingle instr label
     emitDouble "movl" "$1" res
-    addLines [label ++ ":"]
+    addLabel label
     return res
 
 
@@ -449,19 +506,15 @@ incr :: Ident_ -> Integer -> CS ()
 
 incr (Ident_ ident) int = do
     var <- getVar ident
-    case var of
-        '$':prevInt ->
-            addLocalVar ident $ "$" ++ (show ((read prevInt :: Integer) + int))
-        _ -> do
-            singleOccurence <- checkMultiple ident var
-            let instr = if int == 1
-                then "incl"
-                else "decl"
-            if singleOccurence
-                then emitSingle instr var
-                else do
-                    pos <- addStack ident
-                    emitSingle instr pos
+    let instr = if int == 1
+        then "incl"
+        else "decl"
+    singleOccurence <- checkMultiple ident var
+    if (not singleOccurence) || (head var == '$')
+        then do
+            pos <- addStack ident
+            emitSingle instr pos
+        else emitSingle instr var
 
 
 addStack :: String -> CS String

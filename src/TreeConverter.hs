@@ -37,7 +37,7 @@ convert :: String -> TypeHints -> IO Program_
 convert input hints = do
     let (Ok prog) = pProgram $ myLexer input
     let prog_ = evalState (progNoPos prog) $ startState hints
-    -- putStrLn $ show prog
+    -- putStrLn $ show prog_
     return prog_
 
 
@@ -171,9 +171,10 @@ gatherStmt (ret, sts) st =
                     (returned, newSt) = case snd removed of
                         [] -> (False, Empty_)
                         [remSt] -> (fst removed, remSt)
+                    newWhile = While_ expr newSt
                 in case expr of
-                    ELitTrue_ -> (returned, newSt:sts)
-                    _ -> (False, newSt:sts)
+                    ELitTrue_ -> (returned, newWhile:sts)
+                    _ -> (False, newWhile:sts)
 
             _ -> (False, st:sts)
 
