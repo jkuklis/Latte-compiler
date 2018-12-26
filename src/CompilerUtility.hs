@@ -30,8 +30,8 @@ type CS a = State CompilerState a
 
 registers = ["eax", "ecx", "edx"] -- , "ebx", "esi", "edi]
 registersMap = foldr (\reg m -> M.insert reg Nothing m) M.empty registers
-stack = "ebp"
-frame = "esp"
+stack = "%ebp"
+frame = "%esp"
 
 startState = CompilerState {
     code = [],
@@ -44,32 +44,32 @@ startState = CompilerState {
 
 addFun :: Ident_ -> CS ()
 
-addFun (Ident_ ident) =
+addFun (Ident_ ident) = do
     let
         globl = "\n.globl " ++ ident
         fun = ident ++ ":"
-        stackPtr = "\tpush\t%" ++ stack
-        framePtr = "\tmovl\t%" ++ frame ++ ", %" ++ stack
         stackOff = "..stack_holder"
-        prolog = reverse [globl, fun, stackPtr, framePtr, stackOff]
 
-    in modify $ \s -> s { code = concat [prolog, (code s)] }
+    addLines [globl, fun]
+    emitSingle "pushl" stack
+    emitDouble "movl" frame stack
+    modify $ \s -> s { code = stackOff : (code s) }
 
 
 moveFrame :: CS ()
 
 moveFrame = do
     stackHeight <- gets stackEnd
-    lines <- gets code
+    codeLines <- gets code
     let
         reminder = stackHeight `mod` 16
-        frame = if reminder == 0
+        frameLen = if reminder == 0
             then stackHeight
             else stackHeight - reminder + 16
-        line = if frame == 0
+        line = if frameLen == 0
             then ""
-            else "\tsubl\t$" ++ (show frame) ++ ", %esp"
-        repLines = map (\l -> if l == "..stack_holder" then line else l) lines
+            else "\tsubl\t$" ++ (show frameLen) ++ ", " ++ frame
+        repLines = map (\l -> if l == "..stack_holder" then line else l) codeLines
     modify $ \s -> s { code = repLines }
 
 
@@ -147,25 +147,20 @@ checkVoidRet type_ = do
 
 voidRet :: CS ()
 
-voidRet =
-    let
-        leave = "\tleave"
-        ret = "\tret"
-    in modify $ \s -> s { code = ret : (leave : (code s)) }
+voidRet = do
+    emitInstr "leave"
+    emitInstr "ret"
 
 
 exprRet :: Expr_ -> CS ()
 
 exprRet expr = do
     pos <- addExpr expr
-    let
-        line = "\tmovl\t" ++ pos ++ ", %eax"
-        leave = "\tleave"
-        ret = "\tret"
-        newLines = if pos == "%eax"
-            then reverse [leave, ret]
-            else reverse [line, leave, ret]
-    modify $ \s -> s { code = concat [newLines, (code s)] }
+    if pos == "%eax"
+        then return ()
+        else emitDouble "movl" pos "%eax"
+    emitInstr "leave"
+    emitInstr "ret"
 
 
 moveVars :: CS (VarMap, VarMap)
@@ -250,7 +245,10 @@ addExpr expr =
         Not_ expr -> do
             res <- addExpr expr
             emitNot res
-        -- EMul_ e1 op e2 -> doubleExtractApps e1 e2
+        EMul_ e1 op e2 -> do
+            res1 <- addExpr e1
+            res2 <- addExpr e2
+            emitMul res1 op res2
         -- EAdd_ e1 op e2 -> doubleExtractApps e1 e2
         -- ERel_ e1 op e2 -> doubleExtractApps e1 e2
         -- EAnd_ e1 e2 -> doubleExtractApps e1 e2
@@ -260,31 +258,58 @@ addExpr expr =
 addLines :: [String] -> CS ()
 
 addLines toAdd =
-    modify $ \s -> s { code = concat [toAdd, (code s)] }
+    modify $ \s -> s { code = concat [reverse toAdd, (code s)] }
+
+
+tryMovl :: String -> String -> CS String
+
+tryMovl pos res =
+    case pos of
+        '%':_ -> return pos
+        _ -> do
+            emitDouble "movl" pos res
+            return res
+
+
+chooseReg :: String -> String -> String -> CS (String, String)
+
+chooseReg pos1 pos2 def =
+    case pos1 of
+        '%':_ -> return (pos1, pos2)
+        _ -> case pos2 of
+            '%':_ -> return (pos2, pos1)
+            _ -> do
+                tryMovl pos1 def
+                return (def, pos2)
+
+
+emitMul ::  String -> MulOp_ -> String -> CS String
+
+emitMul pos1 op pos2 = do
+    (res, pos) <- chooseReg pos1 pos2 "%eax"
+    case op of
+        Times_ -> do
+            emitDouble "imull" pos res
+            return res
+
 
 
 emitNeg :: String -> CS String
 
-emitNeg res = do
-    let
-        negLines = case res of
-            ('%':_) -> ["\tmull\t$-1, " ++ (show res)]
-            _ ->
-                let
-                    toReg = "\tmovl\t" ++ res ++ ", %eax"
-                    mulLine = "\timull\t$-1, %eax"
-                in reverse [toReg, mulLine]
-    addLines negLines
-    return "%eax"
+emitNeg pos = do
+    let res = "%eax"
+    finRes <- tryMovl pos res
+    emitDouble "imull" "$-1" finRes
+    return finRes
 
 
 emitNot :: String -> CS String
 
-emitNot res = do
-    case res of
-        "$0" -> return "$1"
-        "$1" -> return "$0"
-        -- _ ->
+emitNot pos = do
+    let res = "%eax"
+    finRes <- tryMovl pos res
+    emitDouble "xorl" "$1" finRes
+    return finRes
 
 
 addAss :: Ident_ -> Expr_ -> CS ()
@@ -326,11 +351,25 @@ addStack ident = do
     return pos
 
 
+emitInstr :: String -> CS ()
+
+emitInstr instr =
+    let line = "\t" ++ instr
+    in addLines [line]
+
+
 emitSingle :: String -> String -> CS ()
 
-emitSingle instr var =
-    let line = "\t" ++ instr ++ "\tvar"
-    in modify $ \s -> s { code = line : (code s) }
+emitSingle instr arg =
+    let line = "\t" ++ instr ++ "\t" ++ arg
+    in addLines [line]
+
+
+emitDouble :: String -> String -> String -> CS ()
+
+emitDouble instr arg1 arg2 =
+    let line = "\t" ++ instr ++ "\t" ++ arg1 ++ ", " ++ arg2
+    in addLines [line]
 
 
 -- findAvailable :: CS String
