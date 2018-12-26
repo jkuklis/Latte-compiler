@@ -221,14 +221,14 @@ addDecl type_ item =
     case item of
         NoInit_ (Ident_ ident) -> case type_ of
             -- TODO
-            Str_ -> addLocalVar ident ""
+            Str_ -> addLocalVar ident "TODO"
             --
             Int_ -> addLocalVar ident "$0"
             Bool_ -> addLocalVar ident "$0"
 
-        Init_ (Ident_ ident) expr -> do
-            res <- addExpr expr
-            addLocalVar ident res
+        Init_  ident expr -> do
+            addDecl type_ (NoInit_ ident)
+            addAss ident expr
 
 
 addExpr :: Expr_ -> CS String
@@ -239,7 +239,9 @@ addExpr expr =
         ELitInt_ int -> return $ "$" ++ (show int)
         ELitTrue_ -> return "$1"
         ELitFalse_ -> return "$0"
-        -- EApp_ _ _ ->
+        EApp_ ident args -> do
+            return ""
+
         EString_ str -> return str
         Neg_ expr -> do
             res <- addExpr expr
@@ -346,13 +348,21 @@ emitAdd pos1 op pos2 =
             return res
 
 
+nextLabel :: CS Integer
+
+nextLabel = do
+    count <- gets labelsCount
+    modify $ \s -> s { labelsCount = labelsCount s + 1 }
+    return count
+
+
 emitRel :: String -> RelOp_ -> String -> CS String
 
 emitRel pos1 op pos2 = do
-    labels <- gets labelsCount
+    count <- nextLabel
     let
         res = "%eax"
-        label = ".L" ++ (show labels)
+        label = ".L" ++ (show count)
         instr = case op of
             LTH_ -> "jl"
             LE_ -> "jle"
@@ -360,9 +370,9 @@ emitRel pos1 op pos2 = do
             GE_ -> "jge"
             EQU_ -> "je"
             NE_ -> "jne"
-    helper <- strictMovl pos1 "%ecx"
+    helper <- strictMovl pos2 "%ecx"
     emitDouble "movl" "$0" res
-    emitDouble "cmp" helper pos2
+    emitDouble "cmp" pos1 helper
     emitSingle instr label
     emitDouble "movl" "$1" res
     addLines [label ++ ":"]
@@ -405,7 +415,19 @@ addAss :: Ident_ -> Expr_ -> CS ()
 
 addAss (Ident_ ident) expr = do
     res <- addExpr expr
-    addLocalVar ident res
+    var <- getVar ident
+    case (res, var) of
+        ('%':_, '$':_) -> do
+            pos <- addStack ident
+            emitDouble "movl" res pos
+        (_, '$':_) ->
+            addLocalVar ident res
+        ('%':_, _) ->
+            emitDouble "movl" res var
+        (_, _) -> do
+            let tmp = "%eax"
+            emitDouble "movl" res tmp
+            emitDouble "movl" tmp var
 
 
 incr :: Ident_ -> Integer -> CS ()
@@ -433,7 +455,7 @@ addStack ident = do
     modify $ \s -> s { stackEnd = (stackEnd s + 4) }
     loc <- gets $ M.lookup ident . locVars
     offset <- gets stackEnd
-    let pos = (show offset) ++ "(%ebp)"
+    let pos = "-" ++ (show offset) ++ "(%ebp)"
     case loc of
         Just pos -> modify $ \s -> s { locVars = M.insert ident pos (locVars s) }
         Nothing -> modify $ \s -> s { outVars = M.insert ident pos (outVars s) }
