@@ -5,6 +5,7 @@ import Control.Monad.State
 import AbsLatte
 
 import AnalyserUtility
+import AbstractTree
 
 posInfo :: String -> Pos -> String
 

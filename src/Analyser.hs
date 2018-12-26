@@ -10,9 +10,10 @@ import ErrM
 
 import AnalyserUtility
 import AnalyserErrors
+import AbstractTree
 
 
-analyse :: String -> IO Bool
+analyse :: String -> IO (Bool, TypeHints)
 
 analyse input =
     let tokens = myLexer input in
@@ -21,7 +22,7 @@ analyse input =
                 putErrLn "ERROR\n"
                 putErrLn "Failure to parse program!"
                 putErrLn $ error ++ "\n"
-                return False
+                return (False, M.empty)
 
             Ok (Program _ defs) -> do
                 -- putErrLn $ show defs
@@ -34,7 +35,7 @@ analyse input =
                         putErrLn "ERROR\n"
                         putErr $ unlines $ reverse $ errors state
                 -- putErrLn $ show state
-                return $ continue state
+                return (continue state, typeHints state)
 
 
 getPrototypes :: [TopDef Pos] -> AS ()
@@ -351,7 +352,7 @@ checkAdd :: Expr Pos -> AS (Maybe (Type Pos))
 
 checkAdd (EAdd pos e1 op e2) =
     case op of
-        Plus oPos -> do
+        Plus (Just oPos) -> do
             eType1 <- checkExpr e1
             eType2 <- checkExpr e2
             case eType1 of
@@ -363,6 +364,7 @@ checkAdd (EAdd pos e1 op e2) =
                             return ()
                         Just eType2 ->
                             msgAddInt pos 2 eType2
+                    placeHint oPos Int_
                     return $ Just $ Int pos
 
                 Just (Str ePos) -> do
@@ -373,6 +375,7 @@ checkAdd (EAdd pos e1 op e2) =
                             return ()
                         Just eType2 ->
                             msgAddStr pos 2 eType2
+                    placeHint oPos Str_
                     return $ Just $ Str pos
 
                 Just eType1 -> case eType2 of

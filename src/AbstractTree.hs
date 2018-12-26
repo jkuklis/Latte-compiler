@@ -1,9 +1,15 @@
 module AbstractTree where
 
+import qualified Data.Map as M
+
 import AbsLatte
 
 
-type Pos = Maybe (Int, Int)
+type LineChar = (Int, Int)
+
+type Pos = Maybe LineChar
+
+type TypeHints = M.Map LineChar Type_
 
 
 newtype Ident_ = Ident_ String deriving (Eq, Ord, Show, Read)
@@ -51,6 +57,7 @@ data Expr_
     | Not_ Expr_
     | EMul_ Expr_ MulOp_ Expr_
     | EAdd_ Expr_ AddOp_ Expr_
+    | EStrAdd_ Expr_ Expr_
     | ERel_ Expr_ RelOp_ Expr_
     | EAnd_ Expr_ Expr_
     | EOr_ Expr_ Expr_

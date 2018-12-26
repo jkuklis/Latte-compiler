@@ -8,10 +8,10 @@ import Compiler (compile)
 
 main = do
     input <- getContents
-    continue <- analyse input
+    (continue, typeHints) <- analyse input
     if not continue
         then exitFailure
         else do
-            prog <- convert input
+            prog <- convert input typeHints
             compile prog
             exitSuccess

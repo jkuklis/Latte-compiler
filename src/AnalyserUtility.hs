@@ -5,13 +5,12 @@ import Control.Monad.State
 import qualified Data.Map as M
 
 import AbsLatte
+import AbstractTree
 
 
 putErr = hPutStr stderr
 putErrLn = hPutStrLn stderr
 
-
-type Pos = Maybe (Int, Int)
 
 type FunMap = M.Map Ident (Pos, Type Pos, [Arg Pos])
 
@@ -26,7 +25,8 @@ data AnalysisState = AnalysisState {
     retType :: Type Pos,
     ret :: Bool,
     curFun :: Ident,
-    outermostBlock :: Bool
+    outermostBlock :: Bool,
+    typeHints :: TypeHints
     } deriving Show
 
 type AS a = State AnalysisState a
@@ -52,7 +52,8 @@ startState = AnalysisState {
     retType = defaultType,
     ret = True,
     curFun = Ident "",
-    outermostBlock = True
+    outermostBlock = True,
+    typeHints = M.empty
 }
 
 
@@ -218,3 +219,9 @@ saveState :: AS ()
 saveState = do
     state <- get
     addError $ show state
+
+
+placeHint :: LineChar -> Type_ -> AS ()
+
+placeHint pos type_ =
+    modify $ \s -> s { typeHints = M.insert pos type_ (typeHints s) }

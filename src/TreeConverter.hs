@@ -15,24 +15,29 @@ import AbstractTree
 data ConverterState = ConverterState {
     funs :: S.Set Ident_,
     vars :: S.Set Ident_,
-    apps :: [Stmt_]
+    apps :: [Stmt_],
+    typeHints :: TypeHints
     } deriving Show
 
 type CS a = State ConverterState a
 
-startState = ConverterState {
+
+startState :: TypeHints -> ConverterState
+
+startState hints = ConverterState {
     funs = S.empty,
     vars = S.empty,
-    apps = []
+    apps = [],
+    typeHints = hints
 }
 
 
-convert :: String -> IO Program_
+convert :: String -> TypeHints -> IO Program_
 
-convert input = do
+convert input hints = do
     let (Ok prog) = pProgram $ myLexer input
-    let prog_ = evalState (progNoPos prog) startState
-    -- putStrLn $ show prog_
+    let prog_ = evalState (progNoPos prog) $ startState hints
+    -- putStrLn $ show prog
     return prog_
 
 
@@ -189,6 +194,7 @@ extractApps expr =
         Not_ expr -> extractApps expr
         EMul_ e1 op e2 -> doubleExtractApps e1 e2
         EAdd_ e1 op e2 -> doubleExtractApps e1 e2
+        EStrAdd_ e1 e2 -> doubleExtractApps e1 e2
         ERel_ e1 op e2 -> doubleExtractApps e1 e2
         EAnd_ e1 e2 -> doubleExtractApps e1 e2
         EOr_ e1 e2 -> doubleExtractApps e1 e2
@@ -417,8 +423,12 @@ exprNoPos expr =
                     (EString_ str1, EString_ str2) ->
                         return $ EString_ $ str1 ++ str2
 
-                    (_, _) ->
-                        return $ EAdd_ e1 op e2
+                    (_, _) -> do
+                        let (Plus (Just pos)) = oper
+                        Just type_ <- gets $ M.lookup pos . typeHints
+                        case type_ of
+                            Int_ -> return $ EAdd_ e1 op e2
+                            Str_ -> return $ EStrAdd_ e1 e2
                 Minus_ -> case (e1, e2) of
                     (ELitInt_ int1, ELitInt_ int2) ->
                         return $ ELitInt_ $ int1 - int2

@@ -250,6 +250,9 @@ addExpr expr =
             res2 <- addExpr e2
             emitMul res1 op res2
         -- EAdd_ e1 op e2 -> doubleExtractApps e1 e2
+        -- TODO
+        EStrAdd_ e1 e2 -> return ""
+        --
         -- ERel_ e1 op e2 -> doubleExtractApps e1 e2
         -- EAnd_ e1 e2 -> doubleExtractApps e1 e2
         -- EOr_ e1 e2
@@ -300,7 +303,7 @@ emitMul pos1 op pos2 =
             emitDouble "imull" pos res
             return res
         Div_ -> do
-            emitDouble "movl" "$0" "%edx" 
+            emitDouble "movl" "$0" "%edx"
             strictMovl pos1 "%eax"
             strictMovl pos2 divider
             emitSingle "idivl" divider
