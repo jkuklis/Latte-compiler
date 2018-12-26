@@ -19,7 +19,8 @@ data CompilerState = CompilerState {
     regs :: RegMap,
     locVars :: VarMap,
     outVars :: VarMap,
-    stackEnd :: Integer
+    stackEnd :: Integer,
+    labelsCount :: Integer
     } deriving Show
 
 type CS a = State CompilerState a
@@ -38,7 +39,8 @@ startState = CompilerState {
     regs = registersMap,
     locVars = M.empty,
     outVars = M.empty,
-    stackEnd = 0
+    stackEnd = 0,
+    labelsCount = 0
     }
 
 
@@ -249,13 +251,25 @@ addExpr expr =
             res1 <- addExpr e1
             res2 <- addExpr e2
             emitMul res1 op res2
-        -- EAdd_ e1 op e2 -> doubleExtractApps e1 e2
+        EAdd_ e1 op e2 -> do
+            res1 <- addExpr e1
+            res2 <- addExpr e2
+            emitAdd res1 op res2
         -- TODO
         EStrAdd_ e1 e2 -> return ""
         --
-        -- ERel_ e1 op e2 -> doubleExtractApps e1 e2
-        -- EAnd_ e1 e2 -> doubleExtractApps e1 e2
-        -- EOr_ e1 e2
+        ERel_ e1 op e2 -> do
+            res1 <- addExpr e1
+            res2 <- addExpr e2
+            emitRel res1 op res2
+        EAnd_ e1 e2 -> do
+            res1 <- addExpr e1
+            res2 <- addExpr e2
+            emitAnd res1 res2
+        EOr_ e1 e2 -> do
+            res1 <- addExpr e1
+            res2 <- addExpr e2
+            emitOr res1 res2
 
 
 addLines :: [String] -> CS ()
@@ -274,12 +288,14 @@ tryMovl pos res =
             return res
 
 
-strictMovl :: String -> String -> CS ()
+strictMovl :: String -> String -> CS String
 
 strictMovl pos res =
     if pos == res
-        then return ()
-        else emitDouble "movl" pos res
+        then return res
+        else do
+            emitDouble "movl" pos res
+            return res
 
 chooseReg :: String -> String -> String -> CS (String, String)
 
@@ -289,8 +305,8 @@ chooseReg pos1 pos2 def =
         _ -> case pos2 of
             '%':_ -> return (pos2, pos1)
             _ -> do
-                tryMovl pos1 def
-                return (def, pos2)
+                res <- tryMovl pos1 def
+                return (res, pos2)
 
 
 emitMul ::  String -> MulOp_ -> String -> CS String
@@ -316,11 +332,64 @@ emitMul pos1 op pos2 =
             return "%edx"
 
 
+emitAdd :: String -> AddOp_ -> String -> CS String
+
+emitAdd pos1 op pos2 =
+    case op of
+        Plus_ -> do
+            (res, pos) <- chooseReg pos1 pos2 "%eax"
+            emitDouble "addl" pos res
+            return res
+        Minus_ -> do
+            res <- tryMovl pos1 "%eax"
+            emitDouble "subl" pos2 res
+            return res
+
+
+emitRel :: String -> RelOp_ -> String -> CS String
+
+emitRel pos1 op pos2 = do
+    labels <- gets labelsCount
+    let
+        res = "%eax"
+        label = ".L" ++ (show labels)
+        instr = case op of
+            LTH_ -> "jl"
+            LE_ -> "jle"
+            GTH_ -> "jg"
+            GE_ -> "jge"
+            EQU_ -> "je"
+            NE_ -> "jne"
+    helper <- strictMovl pos1 "%ecx"
+    emitDouble "movl" "$0" res
+    emitDouble "cmp" helper pos2
+    emitSingle instr label
+    emitDouble "movl" "$1" res
+    addLines [label ++ ":"]
+    return res
+
+
+emitAnd :: String -> String -> CS String
+
+emitAnd pos1 pos2 = do
+    (res, pos) <- chooseReg pos1 pos2 "%eax"
+    emitDouble "and" pos res
+    return res
+
+
+emitOr :: String -> String -> CS String
+
+emitOr pos1 pos2 = do
+    (res, pos) <- chooseReg pos1 pos2 "%eax"
+    emitDouble "or" pos res
+    return res
+
+
 emitNeg :: String -> CS String
 
 emitNeg pos = do
     res <- tryMovl pos "%eax"
-    emitDouble "imull" "$-1" res
+    emitSingle "neg" res
     return res
 
 
@@ -378,17 +447,30 @@ emitInstr instr =
     in addLines [line]
 
 
+padded :: Int -> String -> String
+
+padded len str =
+    let
+        strLen = length str
+        padLen = if strLen > len
+            then 0
+            else len - strLen
+        spaces = ' ':spaces
+        padding = take padLen spaces
+    in str ++ padding
+
+
 emitSingle :: String -> String -> CS ()
 
 emitSingle instr arg =
-    let line = "\t" ++ instr ++ "\t" ++ arg
+    let line = "\t" ++ (padded 4 instr) ++ "\t" ++ arg
     in addLines [line]
 
 
 emitDouble :: String -> String -> String -> CS ()
 
 emitDouble instr arg1 arg2 =
-    let line = "\t" ++ instr ++ "\t" ++ arg1 ++ ", " ++ arg2
+    let line = "\t" ++ (padded 4 instr) ++ "\t" ++ arg1 ++ ", " ++ arg2
     in addLines [line]
 
 
