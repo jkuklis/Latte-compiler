@@ -81,7 +81,7 @@ addArgs args = foldM_ addArg 8 args
 addArg :: Integer -> Arg_ -> CS Integer
 
 addArg pos (Arg_ type_ (Ident_ ident)) = do
-    let reg = (show pos) ++ "(%" ++ stack ++ ")"
+    let reg = (show pos) ++ "(" ++ stack ++ ")"
     modify $ \s -> s { outVars = M.insert ident reg (outVars s)}
     return $ pos + 4
 
@@ -271,6 +271,13 @@ tryMovl pos res =
             return res
 
 
+strictMovl :: String -> String -> CS ()
+
+strictMovl pos res =
+    if pos == res
+        then return ()
+        else emitDouble "movl" pos res
+
 chooseReg :: String -> String -> String -> CS (String, String)
 
 chooseReg pos1 pos2 def =
@@ -285,31 +292,41 @@ chooseReg pos1 pos2 def =
 
 emitMul ::  String -> MulOp_ -> String -> CS String
 
-emitMul pos1 op pos2 = do
-    (res, pos) <- chooseReg pos1 pos2 "%eax"
-    case op of
+emitMul pos1 op pos2 =
+    let divider = "%ecx"
+    in case op of
         Times_ -> do
+            (res, pos) <- chooseReg pos1 pos2 "%eax"
             emitDouble "imull" pos res
             return res
-
+        Div_ -> do
+            emitDouble "movl" "$0" "%edx" 
+            strictMovl pos1 "%eax"
+            strictMovl pos2 divider
+            emitSingle "idivl" divider
+            return "%eax"
+        Mod_ -> do
+            emitDouble "movl" "$0" "%edx"
+            strictMovl pos1 "%eax"
+            strictMovl pos2 divider
+            emitSingle "idivl" divider
+            return "%edx"
 
 
 emitNeg :: String -> CS String
 
 emitNeg pos = do
-    let res = "%eax"
-    finRes <- tryMovl pos res
-    emitDouble "imull" "$-1" finRes
-    return finRes
+    res <- tryMovl pos "%eax"
+    emitDouble "imull" "$-1" res
+    return res
 
 
 emitNot :: String -> CS String
 
 emitNot pos = do
-    let res = "%eax"
-    finRes <- tryMovl pos res
-    emitDouble "xorl" "$1" finRes
-    return finRes
+    res <- tryMovl pos "%eax"
+    emitDouble "xorl" "$1" res
+    return res
 
 
 addAss :: Ident_ -> Expr_ -> CS ()
