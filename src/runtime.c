@@ -12,7 +12,7 @@ void printString(char *s) {
 void error() {
     printf("runtime error\n");
     int a = 0;
-    1 / a;
+    int b = 1 / a;
 }
 
 int readInt() {
@@ -22,7 +22,7 @@ int readInt() {
 
 char *readString() {
     char *line;
-    int len = 0;
+    size_t len = 0;
     getline(&line, &len, stdin);
     return line;
 }

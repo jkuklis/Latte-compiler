@@ -16,11 +16,14 @@ type VarMap = M.Map String String
 
 data CompilerState = CompilerState {
     code :: [String],
+    prolog :: [String],
+    heap :: [String],
     regs :: RegMap,
     locVars :: VarMap,
     outVars :: VarMap,
     stackEnd :: Integer,
-    labelsCount :: Integer
+    labelsCount :: Integer,
+    stringsCount :: Integer
     } deriving Show
 
 type CS a = State CompilerState a
@@ -35,12 +38,15 @@ stack = "%ebp"
 frame = "%esp"
 
 startState = CompilerState {
-    code = [],
+    code = [".text"],
+    prolog = [],
+    heap = [".section .rodata"],
     regs = registersMap,
     locVars = M.empty,
     outVars = M.empty,
     stackEnd = 0,
-    labelsCount = 0
+    labelsCount = 0,
+    stringsCount = 0
     }
 
 
@@ -278,15 +284,15 @@ addDecl type_ item =
         NoInit_ (Ident_ ident) -> do
             pos <- addStack ident
             case type_ of
-                -- TODO
-                Str_ -> emitDouble "movl" "$0" pos
-                --
+                Str_ -> do
+                    res <- addToHeap ""
+                    emitDouble "movl" ("$" ++ res) pos
                 Int_ -> emitDouble "movl" "$0" pos
                 Bool_ -> emitDouble "movl" "$0" pos
 
-        Init_  ident expr -> do
-            addDecl type_ (NoInit_ ident)
-            addAss ident expr
+        Init_ (Ident_ ident) expr -> do
+            pos <- addStack ident
+            addAss (Ident_ ident) expr
 
 
 addExpr :: Expr_ -> CS String
@@ -301,8 +307,9 @@ addExpr expr =
             pushArgs exprs
             emitSingle "call" fIdent
             return "%eax"
-
-        EString_ str -> return str
+        EString_ str -> do
+            res <- addToHeap str
+            return $ "$" ++ res
         Neg_ expr -> do
             res <- addExpr expr
             emitNeg res
@@ -372,6 +379,33 @@ chooseReg pos1 pos2 def =
                 return (res, pos2)
 
 
+addHeapLine :: String -> CS ()
+
+addHeapLine line =
+    modify $ \s -> s { heap = line : (heap s) }
+
+
+nextString :: CS String
+
+nextString = do
+    count <- gets stringsCount
+    modify $ \s -> s { stringsCount = count + 1 }
+    return $ ".LC" ++ (show count)
+
+
+addToHeap :: String -> CS String
+
+addToHeap str = do
+    label <- nextString
+    addHeapLine $ label ++ ":"
+    let
+        strRep = if str == ""
+            then "\"\""
+            else str
+    addHeapLine $ "\t.string " ++ strRep
+    return label
+
+
 pushArgs :: [Expr_] -> CS ()
 
 pushArgs exprs = forM_ exprs pushArg
@@ -426,7 +460,7 @@ nextLabel :: CS String
 nextLabel = do
     count <- gets labelsCount
     modify $ \s -> s { labelsCount = labelsCount s + 1 }
-    return $ ".L" ++ (show count)
+    return $ ".LF" ++ (show count)
 
 
 emitRel :: String -> RelOp_ -> String -> CS String
@@ -434,7 +468,9 @@ emitRel :: String -> RelOp_ -> String -> CS String
 emitRel pos1 op pos2 = do
     label <- nextLabel
     let
-        res = "%eax"
+        (res, aux) = if pos1 == "%eax"
+            then ("%eax", "%ecx")
+            else ("%ecx", "%eax")
         instr = case op of
             LTH_ -> "jl"
             LE_ -> "jle"
@@ -442,11 +478,11 @@ emitRel pos1 op pos2 = do
             GE_ -> "jge"
             EQU_ -> "je"
             NE_ -> "jne"
-    helper <- strictMovl pos2 "%ecx"
-    emitDouble "movl" "$0" res
-    emitDouble "cmp" pos1 helper
-    emitSingle instr label
+    helper <- tryMovl pos2 aux
     emitDouble "movl" "$1" res
+    emitDouble "cmp" helper pos1
+    emitSingle instr label
+    emitDouble "movl" "$0" res
     addLabel label
     return res
 
@@ -489,12 +525,14 @@ addAss (Ident_ ident) expr = do
     res <- addExpr expr
     var <- getVar ident
     case (res, var) of
-        ('%':_, '$':_) -> do
-            pos <- addStack ident
-            emitDouble "movl" res pos
-        (_, '$':_) ->
-            addLocalVar ident res
+        -- ('%':_, '$':_) -> do
+        --     pos <- addStack ident
+        --     emitDouble "movl" res pos
+        -- (_, '$':_) ->
+        --     addLocalVar ident res
         ('%':_, _) ->
+            emitDouble "movl" res var
+        ('$':_, _) ->
             emitDouble "movl" res var
         (_, _) -> do
             let tmp = "%eax"
@@ -521,12 +559,9 @@ addStack :: String -> CS String
 
 addStack ident = do
     modify $ \s -> s { stackEnd = (stackEnd s + 4) }
-    loc <- gets $ M.lookup ident . locVars
     offset <- gets stackEnd
     let pos = "-" ++ (show offset) ++ "(%ebp)"
-    case loc of
-        Just pos -> modify $ \s -> s { locVars = M.insert ident pos (locVars s) }
-        Nothing -> modify $ \s -> s { outVars = M.insert ident pos (outVars s) }
+    addLocalVar ident pos
     return pos
 
 

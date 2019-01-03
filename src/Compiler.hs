@@ -27,4 +27,5 @@ compile (Program_ defs) = do
     -- putStrLn $ show defs
     let state = execState (compDefs defs) startState
     -- putStrLn $ show state
+    putStrLn $ unlines $ reverse $ heap state
     putStrLn $ unlines $ reverse $ code state
