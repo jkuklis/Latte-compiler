@@ -69,5 +69,5 @@ data AddOp_ = Plus_ | Minus_
 data MulOp_ = Times_ | Div_ | Mod_
   deriving (Eq, Ord, Show, Read)
 
-data RelOp_ = LTH_ | LE_ | GTH_ | GE_ | EQU_ | NE_
+data RelOp_ = LTH_ | LE_ | GTH_ | GE_ | EQU_ Type_ | NE_ Type_
   deriving (Eq, Ord, Show, Read)

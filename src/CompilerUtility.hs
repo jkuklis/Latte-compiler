@@ -16,7 +16,6 @@ type VarMap = M.Map String String
 
 data CompilerState = CompilerState {
     code :: [String],
-    prolog :: [String],
     heap :: [String],
     regs :: RegMap,
     locVars :: VarMap,
@@ -39,7 +38,6 @@ frame = "%esp"
 
 startState = CompilerState {
     code = [".text"],
-    prolog = [],
     heap = [".section .rodata"],
     regs = registersMap,
     locVars = M.empty,
@@ -324,9 +322,10 @@ addExpr expr =
             res1 <- addExpr e1
             res2 <- addExpr e2
             emitAdd res1 op res2
-        -- TODO
-        EStrAdd_ e1 e2 -> return ""
-        --
+        EStrAdd_ e1 e2 -> do
+            pushArgs [e1, e2]
+            emitSingle "call" "_concatenate"
+            return "%eax"
         ERel_ e1 op e2 -> do
             res1 <- addExpr e1
             res2 <- addExpr e2
@@ -476,8 +475,8 @@ emitRel pos1 op pos2 = do
             LE_ -> "jle"
             GTH_ -> "jg"
             GE_ -> "jge"
-            EQU_ -> "je"
-            NE_ -> "jne"
+            EQU_ _ -> "je"
+            NE_ _ -> "jne"
     helper <- tryMovl pos2 aux
     emitDouble "movl" "$1" res
     emitDouble "cmp" helper pos1

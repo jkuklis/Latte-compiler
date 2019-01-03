@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 void printInt(int a) {
     printf("%d\n", a);
@@ -25,4 +26,13 @@ char *readString() {
     size_t len = 0;
     getline(&line, &len, stdin);
     return line;
+}
+
+char *_concatenate(char *str1, char *str2) {
+    char *res;
+    int len = strlen(str1) + strlen(str2) + 1;
+    res = malloc(len * sizeof(*res));
+    strcpy(res, str1);
+    strcat(res, str2);
+    return res;
 }

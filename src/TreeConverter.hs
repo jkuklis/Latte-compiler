@@ -370,7 +370,6 @@ exprNoPos expr =
             op <- mulOpNoPos oper
             case op of
                 Times_ -> case (e1, e2) of
-                    -- add functions to invoke!
                     (ELitInt_ 0, _) -> do
                         gatherApps e2
                         return $ ELitInt_ 0
@@ -426,7 +425,7 @@ exprNoPos expr =
 
                     (_, _) -> do
                         let (Plus (Just pos)) = oper
-                        Just type_ <- gets $ M.lookup pos . typeHints
+                        type_ <- findHint pos
                         case type_ of
                             Int_ -> return $ EAdd_ e1 op e2
                             Str_ -> return $ EStrAdd_ e1 e2
@@ -444,8 +443,8 @@ exprNoPos expr =
                     LE_ -> int1 <= int2
                     GTH_ -> int1 > int2
                     GE_ -> int1 >= int2
-                    EQU_ -> int1 == int2
-                    NE_ -> int1 /= int2
+                    EQU_ _ -> int1 == int2
+                    NE_ _ -> int1 /= int2
             e1 <- exprNoPos expr1
             e2 <- exprNoPos expr2
             op <- relOpNoPos oper
@@ -456,26 +455,26 @@ exprNoPos expr =
                         else return ELitFalse_
 
                 (ELitTrue_, ELitTrue_) -> case op of
-                    EQU_ -> return ELitTrue_
-                    NE_ -> return ELitFalse_
+                    EQU_ _ -> return ELitTrue_
+                    NE_ _ -> return ELitFalse_
 
                 (ELitFalse_, ELitTrue_) -> case op of
-                    EQU_ -> return ELitFalse_
-                    NE_ -> return ELitTrue_
+                    EQU_ _ -> return ELitFalse_
+                    NE_ _ -> return ELitTrue_
 
                 (ELitTrue_, ELitFalse_) -> case op of
-                    EQU_ -> return ELitFalse_
-                    NE_ -> return ELitTrue_
+                    EQU_ _ -> return ELitFalse_
+                    NE_ _ -> return ELitTrue_
 
                 (ELitFalse_, ELitFalse_) -> case op of
-                    EQU_ -> return ELitTrue_
-                    NE_ -> return ELitFalse_
+                    EQU_ _ -> return ELitTrue_
+                    NE_ _ -> return ELitFalse_
 
                 (EString_ str1, EString_ str2) -> case op of
-                    EQU_ -> if str1 == str2
+                    EQU_ _ -> if str1 == str2
                         then return ELitTrue_
                         else return ELitFalse_
-                    NE_ -> if str1 == str2
+                    NE_ _ -> if str1 == str2
                         then return ELitFalse_
                         else return ELitTrue_
 
@@ -514,6 +513,12 @@ exprNoPos expr =
                 (_, _) ->
                     return $ EOr_ e1 e2
 
+
+findHint :: LineChar -> CS Type_
+
+findHint pos = do
+    Just type_ <- gets $ M.lookup pos . typeHints
+    return type_
 
 gatherApps :: Expr_ -> CS ()
 
@@ -559,5 +564,9 @@ relOpNoPos op =
         LE _ -> return LE_
         GTH _ -> return GTH_
         GE _ -> return GE_
-        EQU _ -> return EQU_
-        NE _ -> return NE_
+        EQU (Just pos) -> do
+            type_ <- findHint pos
+            return $ EQU_ type_
+        NE (Just pos) -> do
+            type_ <- findHint pos
+            return $ NE_ type_
