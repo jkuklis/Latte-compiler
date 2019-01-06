@@ -34,7 +34,7 @@ analyse input =
                     else do
                         putErrLn "ERROR\n"
                         putErr $ unlines $ reverse $ errors state
-                -- putErrLn $ show state
+                -- putErrLn $ show $ typeHints state
                 return (continue state, typeHints state)
 
 
@@ -414,15 +414,15 @@ checkRel :: Expr Pos -> AS ()
 
 checkRel (ERel pos e1 op e2) =
     case op of
-        EQU oPos -> do
+        EQU (Just oPos) -> do
             eType1 <- checkExpr e1
             eType2 <- checkExpr e2
             case eType1 of
                 Just eType1 -> do
                     case eType1 of
-                        Int (Just rPos) -> placeHint rPos Int_
-                        Bool (Just rPos) -> placeHint rPos Bool_
-                        Str (Just rPos) -> placeHint rPos Str_
+                        Int _ -> placeHint oPos Int_
+                        Bool _ -> placeHint oPos Bool_
+                        Str _ -> placeHint oPos Str_
                     checkTypes eType2 eType1 $ msgEqType pos eType1
 
                 Nothing ->

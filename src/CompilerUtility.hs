@@ -464,26 +464,38 @@ nextLabel = do
 
 emitRel :: String -> RelOp_ -> String -> CS String
 
-emitRel pos1 op pos2 = do
-    label <- nextLabel
+emitRel pos1 op pos2 =
     let
-        (res, aux) = if pos1 == "%eax"
-            then ("%eax", "%ecx")
-            else ("%ecx", "%eax")
-        instr = case op of
-            LTH_ -> "jl"
-            LE_ -> "jle"
-            GTH_ -> "jg"
-            GE_ -> "jge"
-            EQU_ _ -> "je"
-            NE_ _ -> "jne"
-    helper <- tryMovl pos2 aux
-    emitDouble "movl" "$1" res
-    emitDouble "cmp" helper pos1
-    emitSingle instr label
-    emitDouble "movl" "$0" res
-    addLabel label
-    return res
+        stringsEquality neq = do
+            emitSingle "push" pos2
+            emitSingle "push" pos1
+            emitSingle "call" "strcmp"
+            when (neq == False) $ emitSingle "not" "%eax"
+            return "%eax"
+
+    in case op of
+        EQU_ Str_ -> stringsEquality False
+        NE_ Str_ -> stringsEquality True
+        _ -> do
+            label <- nextLabel
+            let
+                (res, aux) = if pos1 == "%eax"
+                    then ("%eax", "%ecx")
+                    else ("%ecx", "%eax")
+                instr = case op of
+                    LTH_ -> "jl"
+                    LE_ -> "jle"
+                    GTH_ -> "jg"
+                    GE_ -> "jge"
+                    EQU_ _ -> "je"
+                    NE_ _ -> "jne"
+            helper <- tryMovl pos2 aux
+            emitDouble "movl" "$1" res
+            emitDouble "cmp" helper pos1
+            emitSingle instr label
+            emitDouble "movl" "$0" res
+            addLabel label
+            return res
 
 
 emitAnd :: String -> String -> CS String
