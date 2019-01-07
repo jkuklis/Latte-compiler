@@ -270,8 +270,12 @@ getVar ident = do
     case loc of
         Just pos -> return pos
         Nothing -> do
-            Just pos <- gets $ M.lookup ident . outVars
-            return pos
+            out <- gets $ M.lookup ident . outVars
+            case out of
+                Just pos -> return pos
+                Nothing -> do
+                    pos <- addStack ident
+                    return pos
 
 
 addLocalVar :: String -> String -> CS ()
@@ -294,8 +298,18 @@ addDecl type_ item =
                 Bool_ -> emitDouble "movl" "$0" pos
 
         Init_ (Ident_ ident) expr -> do
+            res <- addExpr expr
             pos <- addStack ident
-            addAss (Ident_ ident) expr
+            case res of
+                '%':_ ->
+                    emitDouble "movl" res pos
+                '$':_ ->
+                    emitDouble "movl" res pos
+                _ -> do
+                    let tmp = "%eax"
+                    emitDouble "movl" res tmp
+                    emitDouble "movl" tmp pos
+
 
 
 addExpr :: Expr_ -> CS String
@@ -557,22 +571,28 @@ emitNot pos = do
 addAss :: Ident_ -> Expr_ -> CS ()
 
 addAss (Ident_ ident) expr = do
+    let
+        assign res var =
+            case (res, var) of
+                -- ('%':_, '$':_) -> do
+                --     pos <- addStack ident
+                --     emitDouble "movl" res pos
+                -- (_, '$':_) ->
+                --     addLocalVar ident res
+                ('%':_, _) ->
+                    emitDouble "movl" res var
+                ('$':_, _) ->
+                    emitDouble "movl" res var
+                (_, _) -> do
+                    let tmp = "%eax"
+                    emitDouble "movl" res tmp
+                    emitDouble "movl" tmp var
     res <- addExpr expr
     var <- getVar ident
-    case (res, var) of
-        -- ('%':_, '$':_) -> do
-        --     pos <- addStack ident
-        --     emitDouble "movl" res pos
-        -- (_, '$':_) ->
-        --     addLocalVar ident res
-        ('%':_, _) ->
-            emitDouble "movl" res var
-        ('$':_, _) ->
-            emitDouble "movl" res var
-        (_, _) -> do
-            let tmp = "%eax"
-            emitDouble "movl" res tmp
-            emitDouble "movl" tmp var
+    assign res var
+
+
+
 
 
 incr :: Ident_ -> Integer -> CS ()
