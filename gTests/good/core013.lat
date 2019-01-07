@@ -1,4 +1,4 @@
-/* Test boolean operators. */
+    /* Test boolean operators. */
 
 int main() {
   printString("&&");

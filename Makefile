@@ -20,7 +20,7 @@ latteM:
 	$(MAKE) -C latte
 
 runtime:
-	gcc -m32 -o build/runtime.s src/runtime.c
+	gcc -m32 -S -o build/runtime.s src/runtime.c
 
 compiler:
 	ghc src/Main.hs -o build/Compiler -odir build -isrc -ilatte

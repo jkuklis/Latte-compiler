@@ -15,6 +15,7 @@ compDef :: TopDef_ -> CS ()
 
 compDef (FnDef_ type_ ident args block) = do
     addFun ident
+    zeroStack
     clearArgs
     addArgs args
     addBlock block

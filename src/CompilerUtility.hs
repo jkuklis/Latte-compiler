@@ -22,7 +22,8 @@ data CompilerState = CompilerState {
     outVars :: VarMap,
     stackEnd :: Integer,
     labelsCount :: Integer,
-    stringsCount :: Integer
+    stringsCount :: Integer,
+    helpers :: Integer
     } deriving Show
 
 type CS a = State CompilerState a
@@ -44,7 +45,8 @@ startState = CompilerState {
     outVars = M.empty,
     stackEnd = 0,
     labelsCount = 0,
-    stringsCount = 0
+    stringsCount = 0,
+    helpers = 0
     }
 
 
@@ -59,6 +61,7 @@ addFun (Ident_ ident) = do
     addLines [globl, fun]
     emitSingle "pushl" stack
     emitDouble "movl" frame stack
+    -- emitSingle "pushl" "%esi"
     modify $ \s -> s { code = stackOff : (code s) }
 
 
@@ -165,6 +168,7 @@ checkVoidRet type_ = do
 voidRet :: CS ()
 
 voidRet = do
+    -- emitSingle "popl" "%esi"
     emitInstr "leave"
     emitInstr "ret"
 
@@ -176,6 +180,7 @@ exprRet expr = do
     if pos == "%eax"
         then return ()
         else emitDouble "movl" pos "%eax"
+    -- emitSingle "popl" "%esi"
     emitInstr "leave"
     emitInstr "ret"
 
@@ -227,15 +232,15 @@ addCond expr stmt = do
 addCondElse :: Expr_ -> Stmt_ -> Stmt_ -> CS ()
 
 addCondElse expr stmt1 stmt2 = do
-    lTrue <- nextLabel
+    lFalse <- nextLabel
     lEnd <- nextLabel
     res <- addExpr expr
     emitDouble "cmp" "$0" res
-    emitSingle "je" lTrue
-    addStmt stmt2
-    emitSingle "jmp" lEnd
-    addLabel lTrue
+    emitSingle "je" lFalse
     addStmt stmt1
+    emitSingle "jmp" lEnd
+    addLabel lFalse
+    addStmt stmt2
     addLabel lEnd
 
 
@@ -296,13 +301,19 @@ addDecl type_ item =
 addExpr :: Expr_ -> CS String
 
 addExpr expr =
-    case expr of
+    let doubleExpr e1 e2 cont = do
+        res1 <- addExpr e1
+        helper <- addHelper res1
+        res2 <- addExpr e2
+        helperReg <- getHelper helper res2
+        cont helper res2
+    in case expr of
         EVar_ (Ident_ eIdent) -> getVar eIdent
         ELitInt_ int -> return $ "$" ++ (show int)
         ELitTrue_ -> return "$1"
         ELitFalse_ -> return "$0"
         EApp_ (Ident_ fIdent) exprs -> do
-            pushArgs exprs
+            pushArgs $ reverse exprs
             emitSingle "call" fIdent
             return "%eax"
         EString_ str -> do
@@ -314,30 +325,43 @@ addExpr expr =
         Not_ expr -> do
             res <- addExpr expr
             emitNot res
-        EMul_ e1 op e2 -> do
-            res1 <- addExpr e1
-            res2 <- addExpr e2
-            emitMul res1 op res2
-        EAdd_ e1 op e2 -> do
-            res1 <- addExpr e1
-            res2 <- addExpr e2
-            emitAdd res1 op res2
+        EMul_ e1 op e2 -> doubleExpr e1 e2 $ emitMul op
+        EAdd_ e1 op e2 -> doubleExpr e1 e2 $ emitAdd op
         EStrAdd_ e1 e2 -> do
-            pushArgs [e1, e2]
+            pushArgs [e2, e1]
             emitSingle "call" "_concatenate"
             return "%eax"
-        ERel_ e1 op e2 -> do
-            res1 <- addExpr e1
-            res2 <- addExpr e2
-            emitRel res1 op res2
-        EAnd_ e1 e2 -> do
-            res1 <- addExpr e1
-            res2 <- addExpr e2
-            emitAnd res1 res2
-        EOr_ e1 e2 -> do
-            res1 <- addExpr e1
-            res2 <- addExpr e2
-            emitOr res1 res2
+        ERel_ e1 op e2 -> doubleExpr e1 e2 $ emitRel op
+        EAnd_ e1 e2 -> doubleExpr e1 e2 $ emitAnd
+        EOr_ e1 e2 -> doubleExpr e1 e2 $ emitOr
+
+
+addHelper :: String -> CS String
+
+addHelper pos = do
+    count <- gets helpers
+    stackPos <- addStack $ "_helper" ++ (show count)
+    let
+        intermediate = case pos of
+            '%':_ -> pos
+            _ -> "%eax"
+    case pos of
+        '%':_ -> return ()
+        _ -> emitDouble "movl" pos intermediate
+    emitDouble "movl" intermediate stackPos
+    modify $ \s -> s { helpers = count + 1 }
+    return stackPos
+
+
+getHelper :: String -> String -> CS String
+
+getHelper helper reg = do
+    let
+        res = case reg of
+            "%eax" -> "%ecx"
+            _ -> "%eax"
+    emitDouble "movl" helper res
+    return res
 
 
 addLines :: [String] -> CS ()
@@ -417,9 +441,9 @@ pushArg expr = do
     emitSingle "push" res
 
 
-emitMul ::  String -> MulOp_ -> String -> CS String
+emitMul :: MulOp_ -> String -> String -> CS String
 
-emitMul pos1 op pos2 =
+emitMul op pos1 pos2 =
     let divider = "%ecx"
     in case op of
         Times_ -> do
@@ -440,9 +464,9 @@ emitMul pos1 op pos2 =
             return "%edx"
 
 
-emitAdd :: String -> AddOp_ -> String -> CS String
+emitAdd :: AddOp_ -> String -> String -> CS String
 
-emitAdd pos1 op pos2 =
+emitAdd op pos1 pos2 =
     case op of
         Plus_ -> do
             (res, pos) <- chooseReg pos1 pos2 "%eax"
@@ -462,9 +486,9 @@ nextLabel = do
     return $ ".LF" ++ (show count)
 
 
-emitRel :: String -> RelOp_ -> String -> CS String
+emitRel :: RelOp_ -> String -> String -> CS String
 
-emitRel pos1 op pos2 =
+emitRel op pos1 pos2 =
     let
         stringsEquality neq = do
             emitSingle "push" pos2
@@ -574,6 +598,12 @@ addStack ident = do
     let pos = "-" ++ (show offset) ++ "(%ebp)"
     addLocalVar ident pos
     return pos
+
+
+zeroStack :: CS ()
+
+zeroStack =
+    modify $ \s -> s { stackEnd = 0 }
 
 
 emitInstr :: String -> CS ()

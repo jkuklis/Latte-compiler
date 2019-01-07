@@ -420,8 +420,8 @@ exprNoPos expr =
                     (ELitInt_ int1, ELitInt_ int2) ->
                         return $ ELitInt_ $ int1 + int2
 
-                    (EString_ str1, EString_ str2) ->
-                        return $ EString_ $ str1 ++ str2
+                    (EString_ str1, EString_ str2) -> do
+                        return $ EString_ $ (init str1) ++ (tail str2)
 
                     (_, _) -> do
                         let (Plus (Just pos)) = oper

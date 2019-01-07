@@ -18,13 +18,15 @@ void error() {
 
 int readInt() {
     int a;
-    scanf("%d", &a);
+    scanf("%d\n", &a);
+    return a;
 }
 
 char *readString() {
-    char *line;
-    size_t len = 0;
-    getline(&line, &len, stdin);
+    size_t len = 2048;
+    char *line = malloc(len * sizeof(line));
+    scanf("%2048[^\n]",line);
+    getchar();
     return line;
 }
 
