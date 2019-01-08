@@ -24,17 +24,17 @@ if [ -n "$2" ]; then
     execFile="output/${fileName}"
 fi
 
-build/Compiler < $filePath > $assemblyFile
+build/Compiler < $filePath # > $assemblyFile
 ret=$?
 
 if [ $ret -ne 0 ]; then
     exit $ret
 fi
 
-gcc -m32 -o $objectFile -c $assemblyFile
+# gcc -m32 -o $objectFile -c $assemblyFile
 
-ld -o $execFile -melf_i386 $objectFile lib/runtime.o /home/students/inf/PUBLIC/MRJP/lib32/{crt*.o,libc.a}
+# ld -o $execFile -melf_i386 $objectFile lib/runtime.o /home/students/inf/PUBLIC/MRJP/lib32/{crt*.o,libc.a}
 
-rm $objectFile
+# rm $objectFile
 
 exit 0

@@ -1,8 +1,6 @@
 all: latteM runtime compiler rights
 
-bnfc:
-	bnfc_download
-	bnfc_install
+bnfc: bnfc_download bnfc_install
 
 bnfc_download:
 	wget https://github.com/mlazowik/bnfc/archive/176-source-position.zip
@@ -30,7 +28,7 @@ compiler:
 	mv src/*.hi build
 
 rights:
-	chmod +x latc_x86_64
+	chmod +x latc_x86
 
 clean:
 	rm -f latte/*

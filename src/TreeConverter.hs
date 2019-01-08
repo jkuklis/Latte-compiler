@@ -13,8 +13,6 @@ import AbstractTree
 
 
 data ConverterState = ConverterState {
-    funs :: S.Set Ident_,
-    vars :: S.Set Ident_,
     apps :: [Stmt_],
     typeHints :: TypeHints
     } deriving Show
@@ -25,8 +23,6 @@ type CS a = State ConverterState a
 startState :: TypeHints -> ConverterState
 
 startState hints = ConverterState {
-    funs = S.empty,
-    vars = S.empty,
     apps = [],
     typeHints = hints
 }
@@ -36,84 +32,85 @@ convert :: String -> TypeHints -> IO Program_
 
 convert input hints = do
     let (Ok prog) = pProgram $ myLexer input
-    let prog_ = evalState (progNoPos prog) $ startState hints
-    -- putStrLn $ show prog_
+    let prog_ = evalState (progConv prog) $ startState hints
     return prog_
 
 
-identNoPos :: Ident -> CS Ident_
+identConv :: Ident -> CS Ident_
 
-identNoPos (Ident ident) =
+identConv (Ident ident) =
     return $ Ident_ ident
 
 
-progNoPos :: Program Pos -> CS Program_
+progConv :: Program Pos -> CS Program_
 
-progNoPos (Program _ defs) = do
-    defs <- defsNoPos defs
+progConv (Program _ defs) = do
+    defs <- defsConv defs
     return $ Program_ defs
 
 
-defsNoPos :: [TopDef Pos] -> CS [TopDef_]
+defsConv :: [TopDef Pos] -> CS [TopDef_]
 
-defsNoPos defs = mapM defNoPos defs
+defsConv defs = mapM defConv defs
 
 
-defNoPos :: TopDef Pos -> CS TopDef_
+defConv :: TopDef Pos -> CS TopDef_
 
-defNoPos (FnDef _ type_ ident args block) = do
-    type_ <- typeNoPos type_
-    ident <- identNoPos ident
-    args <- argsNoPos args
-    block <- blockNoPos block
+defConv (FnDef _ type_ ident args block) = do
+    type_ <- typeConv type_
+    ident <- identConv ident
+    args <- argsConv args
+    block <- blockConv block
     return $ FnDef_ type_ ident args block
 
 
-typesNoPos :: [Type Pos] -> CS [Type_]
+typesConv :: [Type Pos] -> CS [Type_]
 
-typesNoPos types = mapM typeNoPos types
+typesConv types = mapM typeConv types
 
 
-typeNoPos :: Type Pos -> CS Type_
+typeConv :: Type Pos -> CS Type_
 
-typeNoPos type_ =
+typeConv type_ =
     case type_ of
         Int _ -> return Int_
         Str _ -> return Str_
         Bool _ -> return Bool_
         Void _ -> return Void_
         Fun _ type_ types -> do
-            type_ <- typeNoPos type_
-            types <- typesNoPos types
+            type_ <- typeConv type_
+            types <- typesConv types
             return $ Fun_ type_ types
 
 
-argsNoPos :: [Arg Pos] -> CS [Arg_]
+argsConv :: [Arg Pos] -> CS [Arg_]
 
-argsNoPos args = mapM argNoPos args
+argsConv args = mapM argConv args
 
 
-argNoPos :: Arg Pos -> CS Arg_
+argConv :: Arg Pos -> CS Arg_
 
-argNoPos (Arg _ type_ ident) = do
-    type_ <- typeNoPos type_
-    ident <- identNoPos ident
+argConv (Arg _ type_ ident) = do
+    type_ <- typeConv type_
+    ident <- identConv ident
     return $ Arg_ type_ ident
 
 
-blockNoPos :: Block Pos -> CS Block_
+blockConv :: Block Pos -> CS Block_
 
-blockNoPos (Block _ stmts) = do
-    stmts <- stmtsNoPos stmts
+blockConv (Block _ stmts) = do
+    stmts <- stmtsConv stmts
     return $ Block_ stmts
 
 
-stmtsNoPos :: [Stmt Pos] -> CS [Stmt_]
+stmtsConv :: [Stmt Pos] -> CS [Stmt_]
 
-stmtsNoPos stmts = do
-    stmts <- mapM stmtNoPos stmts
-    mapM reduceStmt $ snd $ removeStmts $ concat stmts
+stmtsConv stmts = do
+    stmts <- mapM stmtConv stmts
+    return $ snd $ removeStmts $ concat stmts
 
+
+-- used to remove code after returns
 
 removeStmts :: [Stmt_] -> (Bool, [Stmt_])
 
@@ -179,6 +176,9 @@ gatherStmt (ret, sts) st =
             _ -> (False, st:sts)
 
 
+-- used for extracting function applications from constant expressions
+-- to not lose any side-effects like printing, return them
+
 extractApps :: Expr_ -> [Stmt_]
 
 extractApps expr =
@@ -201,80 +201,73 @@ extractApps expr =
         EOr_ e1 e2 -> doubleExtractApps e1 e2
 
 
--- TODO: remove unnecessary declarations and definitions
+stmtConv :: Stmt Pos -> CS [Stmt_]
 
-reduceStmt :: Stmt_ -> CS Stmt_
-
-reduceStmt stmt =
-    case stmt of
-        _ -> return stmt
-
-
-stmtNoPos :: Stmt Pos -> CS [Stmt_]
-
-stmtNoPos stmt =
+stmtConv stmt =
     case stmt of
         Empty _ ->
             return [Empty_]
 
         BStmt _ block -> do
-            block <- blockNoPos block
+            block <- blockConv block
             return [BStmt_ block]
 
         Decl _ type_ items -> do
-            type_ <- typeNoPos type_
-            items <- itemsNoPos items
+            type_ <- typeConv type_
+            items <- itemsConv items
             return [Decl_ type_ items]
 
         Ass _ ident expr -> do
-            ident <- identNoPos ident
-            expr <- exprNoPos expr
+            ident <- identConv ident
+            expr <- exprConv expr
             return [Ass_ ident expr]
 
         Incr _ ident -> do
-            ident <- identNoPos ident
+            ident <- identConv ident
             return [Incr_ ident]
 
         Decr _ ident -> do
-            ident <- identNoPos ident
+            ident <- identConv ident
             return [Decr_ ident]
 
         Ret _ expr -> do
-            expr <- exprNoPos expr
+            expr <- exprConv expr
             return [Ret_ expr]
 
         VRet _ ->
             return [VRet_]
 
         Cond _ expr stmt -> do
-            expr <- exprNoPos expr
+            expr <- exprConv expr
             apps <- getApps
-            stmt <- stmtNoPos stmt
+            stmt <- stmtConv stmt
             case expr of
                 ELitTrue_ -> return $ concat [apps, stmt]
                 ELitFalse_ -> return $ concat [apps, [Empty_]]
                 _ -> return $ concat [apps, [Cond_ expr (singleStmt stmt)]]
 
         CondElse _ expr stmt1 stmt2 -> do
-            expr <- exprNoPos expr
+            expr <- exprConv expr
             apps <- getApps
-            stmt1 <- stmtNoPos stmt1
-            stmt2 <- stmtNoPos stmt2
+            stmt1 <- stmtConv stmt1
+            stmt2 <- stmtConv stmt2
             case expr of
                 ELitTrue_ -> return $ concat [apps, stmt1]
                 ELitFalse_ -> return $ concat [apps, stmt2]
-                _ -> return $ concat [apps, [CondElse_ expr (singleStmt stmt1) (singleStmt stmt2)]]
+                _ ->
+                    let cond = CondElse_ expr (singleStmt stmt1) (singleStmt stmt2)
+                    in return $ concat [apps, [cond]]
 
         While _ expr stmt -> do
-            expr <- exprNoPos expr
+            expr <- exprConv expr
             apps <- getApps
-            stmt <- stmtNoPos stmt
+            stmt <- stmtConv stmt
             case expr of
                 ELitFalse_ -> return $ concat [apps, [Empty_]]
                 _ -> return [While_ expr (singleStmt (concat [apps, stmt]))]
 
         SExp _ expr -> do
-            expr <- exprNoPos expr
+            expr <- exprConv expr
             gatherApps expr
             getApps
 
@@ -294,35 +287,35 @@ getApps = do
     return $ reverse apps
 
 
-itemsNoPos :: [Item Pos] -> CS [Item_]
+itemsConv :: [Item Pos] -> CS [Item_]
 
-itemsNoPos items = mapM itemNoPos items
+itemsConv items = mapM itemConv items
 
 
-itemNoPos :: Item Pos -> CS Item_
+itemConv :: Item Pos -> CS Item_
 
-itemNoPos item =
+itemConv item =
     case item of
         NoInit _ ident -> do
-            ident <- identNoPos ident
+            ident <- identConv ident
             return $ NoInit_ ident
         Init _ ident expr -> do
-            ident <- identNoPos ident
-            expr <- exprNoPos expr
+            ident <- identConv ident
+            expr <- exprConv expr
             return $ Init_ ident expr
 
 
-exprsNoPos :: [Expr Pos] -> CS [Expr_]
+exprsConv :: [Expr Pos] -> CS [Expr_]
 
-exprsNoPos exprs = mapM exprNoPos exprs
+exprsConv exprs = mapM exprConv exprs
 
 
-exprNoPos :: Expr Pos -> CS Expr_
+exprConv :: Expr Pos -> CS Expr_
 
-exprNoPos expr =
+exprConv expr =
     case expr of
         EVar _ ident -> do
-            ident <- identNoPos ident
+            ident <- identConv ident
             return $ EVar_ ident
 
         ELitInt _ int ->
@@ -335,8 +328,8 @@ exprNoPos expr =
             return $ ELitFalse_
 
         EApp _ ident exprs -> do
-            ident <- identNoPos ident
-            exprs <- exprsNoPos exprs
+            ident <- identConv ident
+            exprs <- exprsConv exprs
             return $ EApp_ ident exprs
 
 
@@ -344,7 +337,7 @@ exprNoPos expr =
             return $ EString_ str
 
         Neg _ expr -> do
-            expr <- exprNoPos expr
+            expr <- exprConv expr
             case expr of
                 ELitInt_ int ->
                     return $ ELitInt_ (-int)
@@ -353,7 +346,7 @@ exprNoPos expr =
                     return $ Neg_ expr
 
         Not _ expr -> do
-            expr <- exprNoPos expr
+            expr <- exprConv expr
             case expr of
                 ELitTrue_ ->
                     return ELitFalse_
@@ -365,9 +358,9 @@ exprNoPos expr =
                     return $ Not_ expr
 
         EMul _ expr1 oper expr2 -> do
-            e1 <- exprNoPos expr1
-            e2 <- exprNoPos expr2
-            op <- mulOpNoPos oper
+            e1 <- exprConv expr1
+            e2 <- exprConv expr2
+            op <- mulOpConv oper
             case op of
                 Times_ -> case (e1, e2) of
                     (ELitInt_ 0, _) -> do
@@ -412,9 +405,9 @@ exprNoPos expr =
                         return $ EMul_ e1 op e2
 
         EAdd _ expr1 oper expr2 -> do
-            e1 <- exprNoPos expr1
-            e2 <- exprNoPos expr2
-            op <- addOpNoPos oper
+            e1 <- exprConv expr1
+            e2 <- exprConv expr2
+            op <- addOpConv oper
             case op of
                 Plus_ -> case (e1, e2) of
                     (ELitInt_ int1, ELitInt_ int2) ->
@@ -445,9 +438,9 @@ exprNoPos expr =
                     GE_ -> int1 >= int2
                     EQU_ _ -> int1 == int2
                     NE_ _ -> int1 /= int2
-            e1 <- exprNoPos expr1
-            e2 <- exprNoPos expr2
-            op <- relOpNoPos oper
+            e1 <- exprConv expr1
+            e2 <- exprConv expr2
+            op <- relOpConv oper
             case (e1, e2) of
                 (ELitInt_ int1, ELitInt_ int2) ->
                     if rel int1 op int2
@@ -482,8 +475,8 @@ exprNoPos expr =
                     return $ ERel_ e1 op e2
 
         EAnd _ expr1 expr2 -> do
-            e1 <- exprNoPos expr1
-            e2 <- exprNoPos expr2
+            e1 <- exprConv expr1
+            e2 <- exprConv expr2
             case (e1, e2) of
                 (ELitTrue_, ELitTrue_) ->
                     return ELitTrue_
@@ -498,8 +491,8 @@ exprNoPos expr =
                     return $ EAnd_ e1 e2
 
         EOr _ expr1 expr2 -> do
-            e1 <- exprNoPos expr1
-            e2 <- exprNoPos expr2
+            e1 <- exprConv expr1
+            e2 <- exprConv expr2
             case (e1, e2) of
                 (ELitFalse_, ELitFalse_) ->
                     return ELitFalse_
@@ -514,11 +507,8 @@ exprNoPos expr =
                     return $ EOr_ e1 e2
 
 
-findHint :: LineChar -> CS Type_
-
-findHint pos = do
-    Just type_ <- gets $ M.lookup pos . typeHints
-    return type_
+-- used for extracting function applications from constant expressions
+-- to not lose any side-effects like printing, store them in state
 
 gatherApps :: Expr_ -> CS ()
 
@@ -539,26 +529,26 @@ gatherApps expr =
     _ -> return ()
 
 
-mulOpNoPos :: MulOp Pos -> CS MulOp_
+mulOpConv :: MulOp Pos -> CS MulOp_
 
-mulOpNoPos op =
+mulOpConv op =
     case op of
         Times _ -> return Times_
         Div _ -> return Div_
         Mod _ -> return Mod_
 
 
-addOpNoPos :: AddOp Pos -> CS AddOp_
+addOpConv :: AddOp Pos -> CS AddOp_
 
-addOpNoPos op =
+addOpConv op =
     case op of
         Plus _ -> return Plus_
         Minus _ -> return Minus_
 
 
-relOpNoPos :: RelOp Pos -> CS RelOp_
+relOpConv :: RelOp Pos -> CS RelOp_
 
-relOpNoPos op =
+relOpConv op =
     case op of
         LTH _ -> return LTH_
         LE _ -> return LE_
@@ -570,3 +560,10 @@ relOpNoPos op =
         NE (Just pos) -> do
             type_ <- findHint pos
             return $ NE_ type_
+
+
+findHint :: LineChar -> CS Type_
+
+findHint pos = do
+    Just type_ <- gets $ M.lookup pos . typeHints
+    return type_

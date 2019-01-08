@@ -25,7 +25,6 @@ analyse input =
                 return (False, M.empty)
 
             Ok (Program _ defs) -> do
-                -- putErrLn $ show defs
                 let statePrototypes = execState (getPrototypes defs) startState
                 let state = execState (checkFunctions defs) statePrototypes
                 if continue state
@@ -34,7 +33,6 @@ analyse input =
                     else do
                         putErrLn "ERROR\n"
                         putErr $ unlines $ reverse $ errors state
-                -- putErrLn $ show $ typeHints state
                 return (continue state, typeHints state)
 
 
