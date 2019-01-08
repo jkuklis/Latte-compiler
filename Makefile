@@ -1,6 +1,8 @@
-all: compiler
+all: latteM runtime compiler rights
 
-true_all: prepare latteM runtime compiler rights
+bnfc:
+	bnfc_download
+	bnfc_install
 
 bnfc_download:
 	wget https://github.com/mlazowik/bnfc/archive/176-source-position.zip
@@ -11,20 +13,17 @@ bnfc_download:
 bnfc_install:
 	cd bnfc-176-source-position/source && cabal install
 
-bnfc_binary = bnfc-176-source-position/source/dist/build/bnfc/bnfc
-
-prepare:
-	mkdir build
-	mkdir latte
+bnfc_binary = ../bnfc-176-source-position/source/dist/build/bnfc/bnfc
 
 latteM:
 	cp src/Latte.cf latte/Latte.cf
-	cd latte && ../$(bnfc_binary) --functor -m Latte.cf
-	# cd latte && bnfc -m Latte
+	cd latte && $(bnfc_binary) --functor -m Latte.cf
 	$(MAKE) -C latte
 
 runtime:
 	gcc -m32 -S -o build/runtime.s src/runtime.c
+	gcc -m32 -o lib/runtime.o -c build/runtime.s
+	rm build/runtime.s
 
 compiler:
 	ghc src/Main.hs -o build/Compiler -odir build -isrc -ilatte
@@ -32,15 +31,9 @@ compiler:
 
 rights:
 	chmod +x latc_x86_64
-	chmod +x latc
-	chmod +x tester
 
 clean:
 	rm -f latte/*
-	rm -f build/*
-	rm -f output/*
-
-clean_build:
 	rm -f build/*
 
 .PHONY: all
