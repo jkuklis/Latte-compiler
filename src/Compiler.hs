@@ -194,8 +194,8 @@ addExpr expr =
             emitSingle "call" "_concatenate"
             return "%eax"
         ERel_ e1 op e2 -> doubleExpr e1 e2 $ emitRel op
-        EAnd_ e1 e2 -> doubleExpr e1 e2 $ emitAnd
-        EOr_ e1 e2 -> doubleExpr e1 e2 $ emitOr
+        EAnd_ e1 e2 -> emitAnd e1 e2
+        EOr_ e1 e2 -> emitOr e1 e2
 
 
 emitMul :: MulOp_ -> String -> String -> CS String
@@ -240,8 +240,8 @@ emitRel :: RelOp_ -> String -> String -> CS String
 emitRel op pos1 pos2 =
     let
         stringsEquality neq = do
-            emitSingle "push" pos2
-            emitSingle "push" pos1
+            emitSingle "pushl" pos2
+            emitSingle "pushl" pos1
             emitSingle "call" "strcmp"
             when (neq == False) $ emitSingle "not" "%eax"
             return "%eax"
@@ -271,20 +271,32 @@ emitRel op pos1 pos2 =
             return res
 
 
-emitAnd :: String -> String -> CS String
+emitAnd :: Expr_ -> Expr_ -> CS String
 
-emitAnd pos1 pos2 = do
-    (res, pos) <- chooseReg pos1 pos2 "%eax"
-    emitDouble "and" pos res
-    return res
+emitAnd e1 e2 = do
+    lEnd <- nextLabel
+    res1 <- addExpr e1
+    reg <- tryMovl res1 "%eax"
+    emitDouble "cmp" "$0" reg
+    emitSingle "je" lEnd
+    res2 <- addExpr e2
+    strictMovl res2 reg
+    addLabel lEnd
+    return reg
 
 
-emitOr :: String -> String -> CS String
+emitOr :: Expr_ -> Expr_ -> CS String
 
-emitOr pos1 pos2 = do
-    (res, pos) <- chooseReg pos1 pos2 "%eax"
-    emitDouble "or" pos res
-    return res
+emitOr e1 e2 = do
+    lEnd <- nextLabel
+    res1 <- addExpr e1
+    reg <- tryMovl res1 "%eax"
+    emitDouble "cmp" "$1" reg
+    emitSingle "je" lEnd
+    res2 <- addExpr e2
+    strictMovl res2 reg
+    addLabel lEnd
+    return reg
 
 
 emitNeg :: String -> CS String
@@ -370,4 +382,4 @@ pushArg :: Expr_ -> CS ()
 
 pushArg expr = do
     res <- addExpr expr
-    emitSingle "push" res
+    emitSingle "pushl" res
