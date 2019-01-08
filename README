@@ -4,6 +4,7 @@ Wyrażenia logiczne są obliczane w pełni zawsze, w związku z czym test good/c
 to także zmienię w ostatecznej wersji.
 Funkcje, które nie pojawiłyby się w kodzie przez wyeliminowanie wyrażeń stałych są dodatkowo wywoływane,
 żeby zachować wszystkie efekty uboczne (wypisania na ekran, pobieranie wartości z wejścia).
+Zawsze prawdziwe if'y są redukowane do związanych z nimi instrukcji, zawsze fałszywe są usuwane.
 
 
 Zbudowanie:

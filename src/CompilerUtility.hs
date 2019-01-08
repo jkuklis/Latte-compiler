@@ -5,6 +5,7 @@ module CompilerUtility where
 import Control.Monad.State
 
 import qualified Data.Map as M
+import qualified Data.List as L
 
 import AbstractTree
 
@@ -311,3 +312,26 @@ checkMultiple ident pos = do
         filteredLoc = filter pred $ M.toList loc
         filteredOut = filter pred $ M.toList out
     return $ (filteredLoc == []) && (filteredOut == [])
+
+
+lastLine :: CS String
+
+lastLine = do
+    code <- gets code
+    return $ head code
+
+
+lastLineRet :: CS Bool
+
+lastLineRet = do
+    line <- lastLine
+    return $ "\tret" `L.isPrefixOf` line
+
+
+checkEmptyLabel :: CS ()
+
+checkEmptyLabel = do
+    line <- lastLine
+    if (".L" `L.isPrefixOf` line)
+        then modify $ \s -> s { code = tail (code s) }
+        else return ()

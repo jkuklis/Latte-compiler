@@ -29,7 +29,8 @@ compDef (FnDef_ type_ ident args block) = do
     clearArgs
     addArgs args
     addBlock block
-    checkVoidRet type_
+    checkEmptyLabel
+    when (type_ == Void_) checkVoidRet
     moveFrame
 
 
@@ -106,10 +107,11 @@ addCondElse expr stmt1 stmt2 = do
     emitDouble "cmp" "$0" res
     emitSingle "je" lFalse
     addStmt stmt1
-    emitSingle "jmp" lEnd
+    ret <- lastLineRet
+    when (not ret) $ emitSingle "jmp" lEnd
     addLabel lFalse
     addStmt stmt2
-    addLabel lEnd
+    when (not ret) $ addLabel lEnd
 
 
 addWhile :: Expr_ -> Stmt_ -> CS ()
@@ -350,11 +352,11 @@ exprRet expr = do
     emitInstr "ret"
 
 
-checkVoidRet :: Type_ -> CS ()
+checkVoidRet :: CS ()
 
-checkVoidRet type_ = do
-    (line:lines) <- gets code
-    if (type_ == Void_) && (not ("\tret" `L.isPrefixOf` line))
+checkVoidRet = do
+    ret <- lastLineRet
+    if not ret
         then voidRet
         else return ()
 
