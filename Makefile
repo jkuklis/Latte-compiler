@@ -1,6 +1,6 @@
 all: compiler
 
-true_all: latteM runtime compiler rights
+true_all: prepare latteM runtime compiler rights
 
 bnfc_download:
 	wget https://github.com/mlazowik/bnfc/archive/176-source-position.zip
@@ -12,6 +12,10 @@ bnfc_install:
 	cd bnfc-176-source-position/source && cabal install
 
 bnfc_binary = bnfc-176-source-position/source/dist/build/bnfc/bnfc
+
+prepare:
+	mkdir build
+	mkdir latte
 
 latteM:
 	cp src/Latte.cf latte/Latte.cf

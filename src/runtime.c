@@ -1,6 +1,11 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+int printf(char*,...);
+int scanf(char*,...);
+void exit(int);
+void *malloc(int);
+int getchar();
+int strlen(const char *s);
+char *strcat(char *s1, const char *s2);
+char *strcpy(char *s1, const char *s2);
 
 void printInt(int a) {
     printf("%d\n", a);
@@ -12,8 +17,7 @@ void printString(char *s) {
 
 void error() {
     printf("runtime error\n");
-    int a = 0;
-    int b = 1 / a;
+    exit(1);
 }
 
 int readInt() {
@@ -23,7 +27,7 @@ int readInt() {
 }
 
 char *readString() {
-    size_t len = 2048;
+    int len = 2048;
     char *line = malloc(len * sizeof(line));
     scanf("%2048[^\n]",line);
     getchar();
