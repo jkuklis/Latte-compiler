@@ -225,7 +225,7 @@ stmtConv stmt =
         Incr _ ident -> do
             ident <- identConv ident
             return [Incr_ ident]
-            
+
         Decr _ ident -> do
             ident <- identConv ident
             return [Decr_ ident]
@@ -481,10 +481,12 @@ exprConv expr =
                 (ELitTrue_, ELitTrue_) ->
                     return ELitTrue_
 
-                (ELitFalse_, _) ->
+                (ELitFalse_, _) -> do
+                    -- gatherApps e2
                     return ELitFalse_
 
-                (_, ELitFalse_) ->
+                (_, ELitFalse_) -> do
+                    -- gatherApps e1
                     return ELitFalse_
 
                 (_, _) ->
@@ -497,10 +499,12 @@ exprConv expr =
                 (ELitFalse_, ELitFalse_) ->
                     return ELitFalse_
 
-                (ELitTrue_, _) ->
+                (ELitTrue_, _) -> do
+                    -- gatherApps e2
                     return ELitTrue_
 
-                (_, ELitTrue_) ->
+                (_, ELitTrue_) -> do
+                    -- gatherApps e1
                     return ELitTrue_
 
                 (_, _) ->

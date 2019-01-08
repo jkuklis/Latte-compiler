@@ -29,9 +29,10 @@ compDef (FnDef_ type_ ident args block) = do
     clearArgs
     addArgs args
     addBlock block
-    checkEmptyLabel
     when (type_ == Void_) checkVoidRet
+    checkEmptyLabel
     moveFrame
+    saveFunCode
 
 
 addBlock :: Block_ -> CS ()
@@ -108,10 +109,12 @@ addCondElse expr stmt1 stmt2 = do
     emitSingle "je" lFalse
     addStmt stmt1
     ret <- lastLineRet
-    when (not ret) $ emitSingle "jmp" lEnd
+    when (not ret) $
+        emitSingle "jmp" lEnd
     addLabel lFalse
     addStmt stmt2
-    when (not ret) $ addLabel lEnd
+    when (not ret) $
+        addLabel lEnd
 
 
 addWhile :: Expr_ -> Stmt_ -> CS ()
@@ -243,7 +246,8 @@ emitRel op pos1 pos2 =
             emitSingle "pushl" pos2
             emitSingle "pushl" pos1
             emitSingle "call" "strcmp"
-            when (neq == False) $ emitSingle "not" "%eax"
+            when (neq == False) $
+                emitSingle "not" "%eax"
             return "%eax"
 
     in case op of

@@ -15,6 +15,8 @@ type VarMap = M.Map String String
 data CompilerState = CompilerState {
     code :: [String],
     heap :: [String],
+    funProlog :: [String],
+    funCode :: [String],
     locVars :: VarMap,
     outVars :: VarMap,
     stackEnd :: Integer,
@@ -33,6 +35,8 @@ frame = "%esp"
 startState = CompilerState {
     code = [".text"],
     heap = [".section .rodata"],
+    funProlog = [],
+    funCode = [],
     locVars = M.empty,
     outVars = M.empty,
     stackEnd = 0,
@@ -49,29 +53,35 @@ addFun (Ident_ ident) = do
     let
         globl = "\n.globl " ++ ident
         fun = ident ++ ":"
-        stackOff = "..stack_holder"
-
-    addLines [globl, fun]
-    emitSingle "pushl" stack
-    emitDouble "movl" frame stack
-    modify $ \s -> s { code = stackOff : (code s) }
+        pushStack = "\tpushl\t" ++ stack
+        saveFrame = "\tmovl\t" ++ frame ++ ", " ++ stack
+        prolog = [globl, fun, pushStack, saveFrame]
+    modify $ \s -> s { funProlog = reverse prolog }
 
 
 moveFrame :: CS ()
 
 moveFrame = do
     stackHeight <- gets maxStack
-    codeLines <- gets code
+    codeLines <- gets funCode
     let
         reminder = stackHeight `mod` 16
         frameLen = if reminder == 0
             then stackHeight
             else stackHeight - reminder + 16
-        line = if frameLen == 0
-            then ""
-            else "\tsubl\t$" ++ (show frameLen) ++ ", " ++ frame
-        repLines = map (\l -> if l == "..stack_holder" then line else l) codeLines
-    modify $ \s -> s { code = repLines }
+        line = "\tsubl\t$" ++ (show frameLen) ++ ", " ++ frame
+    when (frameLen /= 0) $
+        modify $ \s -> s { funProlog = line : funProlog s }
+
+
+saveFunCode :: CS ()
+
+saveFunCode =
+    modify $ \s -> s {
+        code = concat [funCode s, funProlog s, code s],
+        funProlog = [],
+        funCode = []
+    }
 
 
 addArgs :: [Arg_] -> CS ()
@@ -176,7 +186,7 @@ getHelper helper reg = do
 addLines :: [String] -> CS ()
 
 addLines toAdd =
-    modify $ \s -> s { code = concat [reverse toAdd, (code s)] }
+    modify $ \s -> s { funCode = concat [reverse toAdd, (funCode s)] }
 
 
 tryMovl :: String -> String -> CS String
@@ -317,8 +327,10 @@ checkMultiple ident pos = do
 lastLine :: CS String
 
 lastLine = do
-    code <- gets code
-    return $ head code
+    code <- gets funCode
+    case code of
+        _:_ -> return $ head code
+        _ -> return ""
 
 
 lastLineRet :: CS Bool
@@ -333,5 +345,5 @@ checkEmptyLabel :: CS ()
 checkEmptyLabel = do
     line <- lastLine
     if (".L" `L.isPrefixOf` line)
-        then modify $ \s -> s { code = tail (code s) }
+        then modify $ \s -> s { funCode = tail (funCode s) }
         else return ()
