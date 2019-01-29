@@ -162,13 +162,14 @@ addDecl type_ item =
             pos <- addStack ident
             case res of
                 '%':_ ->
-                    emitDouble "movl" res pos
+                    strictMovl res pos
                 '$':_ ->
-                    emitDouble "movl" res pos
+                    strictMovl res pos
                 _ -> do
                     let tmp = "%eax"
-                    emitDouble "movl" res tmp
-                    emitDouble "movl" tmp pos
+                    strictMovl res tmp
+                    strictMovl tmp pos
+            return ()
 
 
 addExpr :: Expr_ -> CS String
@@ -178,8 +179,12 @@ addExpr expr =
         res1 <- addExpr e1
         helper <- addHelper res1
         res2 <- addExpr e2
-        helperReg <- getHelper helper res2
-        cont helper res2
+        if (helper /= res1)
+            then do
+                res1Back <- getHelper helper res2 "%eax" "%ecx"
+                cont res1Back res2
+            else
+                cont res1 res2
     in case expr of
         EVar_ (Ident_ eIdent) -> getVar eIdent
         ELitInt_ int -> return $ "$" ++ (show int)
@@ -213,23 +218,24 @@ addExpr expr =
 emitMul :: MulOp_ -> String -> String -> CS String
 
 emitMul op pos1 pos2 =
-    let divider = "%ecx"
+    let
+        dividend = "%eax"
+        divisor = "%ecx"
+        auxiliary = "%edx"
+        divisionHelper = do
+            divisorPos <- setDivision pos1 pos2 dividend divisor auxiliary
+            emitDouble "movl" "$0" "%edx"
+            emitSingle "idivl" divisorPos
     in case op of
         Times_ -> do
             (res, pos) <- chooseReg pos1 pos2 "%eax"
             emitDouble "imull" pos res
             return res
         Div_ -> do
-            emitDouble "movl" "$0" "%edx"
-            strictMovl pos1 "%eax"
-            strictMovl pos2 divider
-            emitSingle "idivl" divider
+            divisionHelper
             return "%eax"
         Mod_ -> do
-            emitDouble "movl" "$0" "%edx"
-            strictMovl pos1 "%eax"
-            strictMovl pos2 divider
-            emitSingle "idivl" divider
+            divisionHelper
             return "%edx"
 
 
@@ -242,7 +248,7 @@ emitAdd op pos1 pos2 =
             emitDouble "addl" pos res
             return res
         Minus_ -> do
-            res <- tryMovl pos1 "%eax"
+            res <- setSubtract pos1 pos2 "%ecx" "%edx"
             emitDouble "subl" pos2 res
             return res
 

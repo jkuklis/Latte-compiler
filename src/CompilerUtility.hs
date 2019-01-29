@@ -156,32 +156,30 @@ addLocalVar ident pos =
 
 addHelper :: String -> CS String
 
-addHelper pos = do
-    count <- gets helpers
-    stackPos <- addStack $ "_helper" ++ (show count)
-    let
-        intermediate = case pos of
-            '%':_ -> pos
-            _ -> "%eax"
-    case pos of
-        '%':_ -> return ()
-        _ -> emitDouble "movl" pos intermediate
-    emitDouble "movl" intermediate stackPos
-    modify $ \s -> s { helpers = count + 1 }
-    return stackPos
+addHelper pos =
+    if isRegister pos
+        then do
+            count <- gets helpers
+            stackPos <- addStack $ "_helper" ++ (show count)
+            strictMovl pos stackPos
+            modify $ \s -> s { helpers = count + 1 }
+            return stackPos
+        else
+            return pos
 
 
-getHelper :: String -> String -> CS String
+getHelper :: String -> String -> String -> String -> CS String
 
-getHelper helper reg = do
-    let
-        res = case reg of
-            "%eax" -> "%ecx"
-            _ -> "%eax"
-    emitDouble "movl" helper res
+getHelper helper res2 aux1 aux2 = do
     modify $ \s -> s { stackEnd = stackEnd s - 4 }
-    return res
-
+    if res2 == aux1
+        then do
+            strictMovl helper aux2
+            return aux2
+        else do
+            strictMovl helper aux1
+            return aux1
+            
 
 restoreEsp :: [Expr_] -> CS ()
 
@@ -228,6 +226,37 @@ chooseReg pos1 pos2 def =
             _ -> do
                 res <- tryMovl pos1 def
                 return (res, pos2)
+
+
+setDivision :: String -> String -> String -> String -> String -> CS String
+
+setDivision pos1 pos2 dest1 dest2 aux =
+    if dest1 == pos2
+        then do
+            if dest2 == pos1
+                then do
+                    strictMovl pos2 aux
+                    strictMovl pos1 dest1
+                    strictMovl aux dest2
+                else do
+                    strictMovl pos2 dest2
+                    strictMovl pos1 dest1
+            return dest2
+        else do
+            strictMovl pos1 dest1
+            return pos2
+
+
+setSubtract :: String -> String -> String -> String -> CS String
+
+setSubtract pos1 pos2 dest1 dest2 =
+    if dest1 == pos2
+        then do
+            res <- tryMovl pos1 dest2
+            return res
+        else do
+            res <- tryMovl pos1 dest1
+            return res
 
 
 addHeapLine :: String -> CS ()
@@ -356,3 +385,22 @@ checkEmptyLabel = do
     if (".L" `L.isPrefixOf` line)
         then modify $ \s -> s { funCode = tail (funCode s) }
         else return ()
+
+
+isRegister :: String -> Bool
+
+isRegister pos = case pos of
+    '%':_ -> True
+    _ -> False
+
+
+isConstant :: String -> Bool
+
+isConstant pos = case pos of
+    '$':_ -> True
+    _ -> False
+
+
+isMemory :: String -> Bool
+
+isMemory pos = not $ (isRegister pos) || (isConstant pos)
