@@ -179,7 +179,7 @@ getHelper helper res2 aux1 aux2 = do
         else do
             strictMovl helper aux1
             return aux1
-            
+
 
 restoreEsp :: [Expr_] -> CS ()
 

@@ -4,13 +4,31 @@ entrypoints Program ;
 
 Program.   Program ::= [TopDef] ;
 
-FnDef.	   TopDef ::= Type Ident "(" [Arg] ")" Block ;
-
 separator nonempty TopDef "" ;
+
+TopFn.     TopDef ::= FnDef ;
+
+TopCl.     TopDef ::= ClDef ;
+
+FnDef.	   FnDef ::= Type Ident "(" [Arg] ")" Block ;
 
 Arg. 	   Arg ::= Type Ident;
 
 separator  Arg "," ;
+
+-- classes -------------------------------------------------
+
+ClDef.     ClDef ::= "class" Ident ClassBlock ;
+
+ClInher.   ClDef ::= "class" Ident "extends" Ident ClassBlock;
+
+ClBlock.   ClassBlock ::= "{" [ClMember] "}" ;
+
+separator  ClMember "" ;
+
+ClAttr.    ClMember ::= Type Ident ";" ;
+
+ClFun.     ClMember ::= FnDef ;
 
 -- statements ----------------------------------------------
 
@@ -32,9 +50,11 @@ separator nonempty Item "," ;
 
 Ass.       Stmt ::= Ident "=" Expr  ";" ;
 
-Incr.      Stmt ::= Ident "++"  ";" ;
+AttrAss.   Stmt ::= Ident "." Ident "=" Expr ";" ;
 
-Decr.      Stmt ::= Ident "--"  ";" ;
+Incr.      Stmt ::= Ident "++" ";" ;
+
+Decr.      Stmt ::= Ident "--" ";" ;
 
 Ret.       Stmt ::= "return" Expr ";" ;
 
@@ -58,13 +78,19 @@ Bool.      Type ::= "boolean" ;
 
 Void.      Type ::= "void" ;
 
-internal   Fun. Type ::= Type "(" [Type] ")" ;
+Class.     Type ::= Ident ;
 
-separator  Type "," ;
+-- internal   Fun. Type ::= Type "(" [Type] ")" ;
+
+-- separator Type "," ;
 
 -- Expressions ---------------------------------------------
 
+ENull.     Expr6 ::= "(" Ident ")" "null" ;
 EVar.      Expr6 ::= Ident ;
+
+
+ENew.      Expr6 ::= "new" Ident ;
 
 ELitInt.   Expr6 ::= Integer ;
 
@@ -75,6 +101,10 @@ ELitFalse. Expr6 ::= "false" ;
 EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
 
 EString.   Expr6 ::= String ;
+
+EAttr.     Expr6 ::=  Ident "." Ident ;
+
+EMethod.   Expr6 ::= Ident "." Ident "(" [Expr] ")" ;
 
 Neg.       Expr5 ::= "-" Expr6 ;
 
