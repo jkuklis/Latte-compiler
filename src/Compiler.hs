@@ -175,16 +175,28 @@ addDecl type_ item =
 addExpr :: Expr_ -> CS String
 
 addExpr expr =
-    let doubleExpr e1 e2 cont = do
-        res1 <- addExpr e1
-        helper <- addHelper res1
-        res2 <- addExpr e2
-        if (helper /= res1)
-            then do
-                res1Back <- getHelper helper res2 "%eax" "%ecx"
-                cont res1Back res2
-            else
-                cont res1 res2
+    let
+        noHelperCont res1 e2 cont = do
+            res2 <- addExpr e2
+            cont res1 res2
+
+        doubleExpr e1 e2 cont = do
+            res1 <- addExpr e1
+            case e2 of
+                EVar_ _ -> noHelperCont res1 e2 cont
+                ELitInt_ _ -> noHelperCont res1 e2 cont
+                ELitTrue_ -> noHelperCont res1 e2 cont
+                ELitFalse_ -> noHelperCont res1 e2 cont
+                EString_ _ -> noHelperCont res1 e2 cont
+                _ -> do
+                    helper <- addHelper res1
+                    res2 <- addExpr e2
+                    if (helper /= res1)
+                        then do
+                            res1Back <- getHelper helper res2 "%eax" "%ecx"
+                            cont res1Back res2
+                        else
+                            cont res1 res2
     in case expr of
         EVar_ (Ident_ eIdent) -> getVar eIdent
         ELitInt_ int -> return $ "$" ++ (show int)
@@ -268,26 +280,71 @@ emitRel op pos1 pos2 =
     in case op of
         EQU_ Str_ -> stringsEquality False
         NE_ Str_ -> stringsEquality True
-        _ -> do
-            label <- nextLabel
-            let
-                (res, aux) = if pos1 == "%eax"
-                    then ("%eax", "%ecx")
-                    else ("%ecx", "%eax")
-                instr = case op of
-                    LTH_ -> "jl"
-                    LE_ -> "jle"
-                    GTH_ -> "jg"
-                    GE_ -> "jge"
-                    EQU_ _ -> "je"
-                    NE_ _ -> "jne"
-            helper <- tryMovl pos2 aux
-            emitDouble "movl" "$1" res
-            emitDouble "cmp" helper pos1
-            emitSingle instr label
-            emitDouble "movl" "$0" res
-            addLabel label
-            return res
+        _ -> if pos1 == pos2
+            then case op of
+                LTH_ -> return "$0"
+                LE_ -> return "$1"
+                GTH_ -> return "$0"
+                GE_ -> return "$1"
+                EQU_ _ -> return "$1"
+                NE_ _ -> return "$0"
+
+            else do
+                label <- nextLabel
+                let
+                    switcher p1 p2 r1 r2 r3 =
+                        if (p1 == r1) || (p2 == r1)
+                            then if (p1 == r2) || (p2 == r2)
+                                then r3
+                                else r2
+                            else r1
+
+                    res = switcher pos1 pos2 "%eax" "%ecx" "%edx"
+                    aux1 = switcher pos2 res "%eax" "%ecx" "%edx"
+                    aux2 = switcher pos1 res "%eax" "%ecx" "%edx"
+
+                    instr = case op of
+                        LTH_ -> "jl"
+                        LE_ -> "jle"
+                        GTH_ -> "jg"
+                        GE_ -> "jge"
+                        EQU_ _ -> "je"
+                        NE_ _ -> "jne"
+
+                    revInstr = case op of
+                        LTH_ -> "jge"
+                        LE_ -> "jg"
+                        GTH_ -> "jle"
+                        GE_ -> "jl"
+                        EQU_ _ -> "je"
+                        NE_ _ -> "jne"
+
+                emitDouble "movl" "$1" res
+
+                case (isConstant pos1, isConstant pos2) of
+                    (True, False) -> do
+                        helper <- tryMovl pos2 aux2
+                        emitDouble "cmp" pos1 helper
+                        emitSingle revInstr label
+
+                    (False, False) -> do
+                        if (isRegister pos1) || (isRegister pos2)
+                            then do
+                                emitDouble "cmp" pos2 pos1
+                                emitSingle instr label
+                            else do
+                                helper <- tryMovl pos1 aux1
+                                emitDouble "cmp" pos2 helper
+                                emitSingle instr label
+
+                    _ -> do
+                        helper <- tryMovl pos1 aux1
+                        emitDouble "cmp" pos2 helper
+                        emitSingle instr label
+
+                emitDouble "movl" "$0" res
+                addLabel label
+                return res
 
 
 emitAnd :: Expr_ -> Expr_ -> CS String

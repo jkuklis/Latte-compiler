@@ -77,10 +77,10 @@ typeConv type_ =
         Str _ -> return Str_
         Bool _ -> return Bool_
         Void _ -> return Void_
-        Fun _ type_ types -> do
-            type_ <- typeConv type_
-            types <- typesConv types
-            return $ Fun_ type_ types
+        -- Fun _ type_ types -> do
+        --     type_ <- typeConv type_
+        --     types <- typesConv types
+        --     return $ Fun_ type_ types
 
 
 argsConv :: [Arg Pos] -> CS [Arg_]

@@ -244,7 +244,12 @@ setDivision pos1 pos2 dest1 dest2 aux =
             return dest2
         else do
             strictMovl pos1 dest1
-            return pos2
+            if isConstant pos2
+                then do
+                    strictMovl pos2 dest2
+                    return dest2
+                else
+                    return pos2
 
 
 setSubtract :: String -> String -> String -> String -> CS String

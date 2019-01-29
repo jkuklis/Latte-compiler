@@ -6,11 +6,7 @@ Program.   Program ::= [TopDef] ;
 
 separator nonempty TopDef "" ;
 
-TopFn.     TopDef ::= FnDef ;
-
-TopCl.     TopDef ::= ClDef ;
-
-FnDef.	   FnDef ::= Type Ident "(" [Arg] ")" Block ;
+FnDef.	   TopDef ::= Type Ident "(" [Arg] ")" Block ;
 
 Arg. 	   Arg ::= Type Ident;
 
@@ -18,9 +14,9 @@ separator  Arg "," ;
 
 -- classes -------------------------------------------------
 
-ClDef.     ClDef ::= "class" Ident ClassBlock ;
+ClDef.     TopDef ::= "class" Ident ClassBlock ;
 
-ClInher.   ClDef ::= "class" Ident "extends" Ident ClassBlock;
+ClInher.   TopDef ::= "class" Ident "extends" Ident ClassBlock;
 
 ClBlock.   ClassBlock ::= "{" [ClMember] "}" ;
 
@@ -28,7 +24,7 @@ separator  ClMember "" ;
 
 ClAttr.    ClMember ::= Type Ident ";" ;
 
-ClFun.     ClMember ::= FnDef ;
+ClFun.     ClMember ::= Type Ident "(" [Arg] ")" Block ;
 
 -- statements ----------------------------------------------
 
