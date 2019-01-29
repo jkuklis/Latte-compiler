@@ -56,7 +56,8 @@ getPrototypes (def:defs) = do
                     when (args /= []) $ msgMainArgs pos
                     when (type_ == Int pos && args == []) $
                         addPrototype ident pos type_ args
-                else
+                else do
+                    when (singleQuotes ident) $ msgQuote pos ident
                     addPrototype ident pos type_ args
     getPrototypes defs
 
@@ -86,8 +87,11 @@ addArgs :: [Arg Pos] -> AS ()
 addArgs [] =
     return ()
 
+
 addArgs (arg:args) = do
     let Arg pos type_ ident = arg
+    when (singleQuotes ident) $ msgQuote pos ident
+
     case type_ of
         Void _ ->
             msgVoidArg pos ident
@@ -191,8 +195,8 @@ checkStmt st = case st of
     CondElse pos expr stmt1 stmt2 -> do
         eType <- checkExpr expr
         checkTypes eType defaultBool $ msgCond pos
-        ret1 <- checkStmt stmt1
-        ret2 <- checkStmt stmt2
+        ret1 <- checkStmt $ BStmt pos $ Block pos [stmt1]
+        ret2 <- checkStmt $ BStmt pos $ Block pos [stmt2]
         constCond <- constantBool expr
         case constCond of
             Just True ->
@@ -203,7 +207,12 @@ checkStmt st = case st of
                 return $ ret1 && ret2
 
     While pos expr stmt -> do
-        checkStmt $ Cond pos expr stmt
+        ret <- checkStmt $ Cond pos expr stmt
+        constCond <- constantBool expr
+        case constCond of
+            Just True ->
+                return True
+            _ -> return ret
 
     SExp pos expr -> do
         checkExpr expr
@@ -230,6 +239,7 @@ checkDecl dType (item:items) = case item of
         checkDecl dType $ (NoInit pos ident) : items
 
     NoInit pos ident -> do
+        when (singleQuotes ident) $ msgQuote pos ident
         var <- findLoc ident
         case var of
             Just (vPos, vType) ->
@@ -421,6 +431,7 @@ checkRel (ERel pos e1 op e2) =
                         Int _ -> placeHint oPos Int_
                         Bool _ -> placeHint oPos Bool_
                         Str _ -> placeHint oPos Str_
+                        Void _ -> msgVoidComp pos
                     checkTypes eType2 eType1 $ msgEqType pos eType1
 
                 Nothing ->
@@ -486,6 +497,8 @@ constantBool expr = case expr of
                         con1 <- constantStr e1
                         con2 <- constantStr e2
                         sameVal con1 con2
+
+                    Void _ -> return Nothing
 
             NE pos -> do
                 con <- constantBool (ERel pos e1 (EQU pos) e2)

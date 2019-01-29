@@ -40,7 +40,7 @@ msgSameArg ident pos prevPos =
 msgMainType :: Type Pos -> Pos -> AS ()
 
 msgMainType type_ pos =
-    addError $ "Incorrect main type: " ++ (show type_) ++ "!\n"
+    addError $ "Incorrect main type: " ++ (showType type_) ++ "!\n"
     ++ (posInfo "Defined" pos)
 
 
@@ -126,7 +126,7 @@ msgVarDeclared ident pos prevPos =
 msgVarUndefined :: Ident -> Pos -> AS ()
 
 msgVarUndefined (Ident ident) pos =
-    addError $ "Variable " ++ ident ++ "not defined!!\n"
+    addError $ "Variable " ++ ident ++ " not defined!!\n"
     ++ (posInfo "Used" pos)
 
 
@@ -312,3 +312,16 @@ msgModZero :: Pos -> AS ()
 msgModZero pos =
     addError $ "Modulo zero!\n"
     ++ (posInfo "Modulo" pos)
+
+
+msgQuote :: Pos -> Ident -> AS ()
+
+msgQuote pos (Ident ident) =
+    addError $ "Single quote in name: " ++ ident ++ "\n"
+    ++ (posInfo "Used" pos)
+
+msgVoidComp :: Pos -> AS ()
+
+msgVoidComp pos =
+    addError $ "Void comparison!\n"
+    ++ (posInfo "Compared" pos)

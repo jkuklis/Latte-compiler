@@ -91,7 +91,6 @@ addError :: String -> AS ()
 addError error =
     modify $ \s -> s { errors = (error : (errors s)), continue = False }
 
-
 addPrototype :: Ident -> Pos -> Type Pos -> [Arg Pos] -> AS ()
 
 addPrototype ident pos type_ args =
@@ -174,6 +173,7 @@ cmpTypes :: Type Pos -> Type Pos -> Bool
 cmpTypes (Int pos1) (Int pos2) = True
 cmpTypes (Str pos1) (Str pos2) = True
 cmpTypes (Bool pos1) (Bool pos2) = True
+cmpTypes (Void pos1) (Void pos2) = True
 cmpTypes _ _ = False
 
 
@@ -183,6 +183,7 @@ showType type_ = case type_ of
     Int pos -> "int"
     Str pos -> "str"
     Bool pos -> "bool"
+    Void pos -> "void"
 
 
 defaultPos :: Pos
@@ -225,3 +226,8 @@ placeHint :: LineChar -> Type_ -> AS ()
 
 placeHint pos type_ =
     modify $ \s -> s { typeHints = M.insert pos type_ (typeHints s) }
+
+
+singleQuotes :: Ident -> Bool
+
+singleQuotes (Ident ident) = '\'' `elem` ident

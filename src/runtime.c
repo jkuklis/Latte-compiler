@@ -29,7 +29,7 @@ int readInt() {
 char *readString() {
     int len = 2048;
     char *line = malloc(len * sizeof(line));
-    scanf("%2048[^\n]",line);
+    scanf(" %2048[^\n]",line);
     getchar();
     return line;
 }

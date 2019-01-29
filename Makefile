@@ -1,4 +1,6 @@
-all: latteM runtime compiler rights
+# all: latteM runtime compiler rights
+
+all: compiler
 
 bnfc: bnfc_download bnfc_install
 

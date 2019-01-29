@@ -11,6 +11,7 @@ import CompilerUtility
 compile :: Program_ -> IO ()
 
 compile (Program_ defs) = do
+    putStrLn $ show $ Program_ defs
     let state = execState (compDefs defs) startState
     putStrLn $ unlines $ reverse $ heap state
     putStrLn $ unlines $ reverse $ code state
@@ -119,16 +120,23 @@ addCondElse expr stmt1 stmt2 = do
 
 addWhile :: Expr_ -> Stmt_ -> CS ()
 
-addWhile expr stmt = do
-    lBody <- nextLabel
-    lCond <- nextLabel
-    emitSingle "jmp" lCond
-    addLabel lBody
-    addStmt stmt
-    addLabel lCond
-    res <- addExpr expr
-    emitDouble "cmp" "$1" res
-    emitSingle "je" lBody
+addWhile expr stmt =
+    if expr == ELitTrue_
+        then do
+            lBody <- nextLabel
+            addLabel lBody
+            addStmt stmt
+            emitSingle "jmp" lBody
+        else do
+            lBody <- nextLabel
+            lCond <- nextLabel
+            emitSingle "jmp" lCond
+            addLabel lBody
+            addStmt stmt
+            addLabel lCond
+            res <- addExpr expr
+            emitDouble "cmp" "$1" res
+            emitSingle "je" lBody
 
 
 addDecls :: Type_ -> [Item_] -> CS ()

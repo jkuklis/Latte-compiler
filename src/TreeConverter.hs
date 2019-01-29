@@ -206,7 +206,7 @@ stmtConv :: Stmt Pos -> CS [Stmt_]
 stmtConv stmt =
     case stmt of
         Empty _ ->
-            return [Empty_]
+            return []
 
         BStmt _ block -> do
             block <- blockConv block
@@ -220,7 +220,8 @@ stmtConv stmt =
         Ass _ ident expr -> do
             ident <- identConv ident
             expr <- exprConv expr
-            return [Ass_ ident expr]
+            apps <- getApps
+            return $ concat [apps, [Ass_ ident expr]]
 
         Incr _ ident -> do
             ident <- identConv ident
@@ -232,7 +233,8 @@ stmtConv stmt =
 
         Ret _ expr -> do
             expr <- exprConv expr
-            return [Ret_ expr]
+            apps <- getApps
+            return $ concat [apps, [Ret_ expr]]
 
         VRet _ ->
             return [VRet_]
@@ -243,7 +245,7 @@ stmtConv stmt =
             stmt <- stmtConv stmt
             case expr of
                 ELitTrue_ -> return $ concat [apps, stmt]
-                ELitFalse_ -> return $ concat [apps, [Empty_]]
+                ELitFalse_ -> return apps
                 _ -> return $ concat [apps, [Cond_ expr (singleStmt stmt)]]
 
         CondElse _ expr stmt1 stmt2 -> do
@@ -263,7 +265,7 @@ stmtConv stmt =
             apps <- getApps
             stmt <- stmtConv stmt
             case expr of
-                ELitFalse_ -> return $ concat [apps, [Empty_]]
+                ELitFalse_ -> return apps
                 _ -> return [While_ expr (singleStmt (concat [apps, stmt]))]
 
         SExp _ expr -> do
@@ -481,12 +483,18 @@ exprConv expr =
                 (ELitTrue_, ELitTrue_) ->
                     return ELitTrue_
 
+                (ELitTrue_, _) ->
+                    return e2
+
+                (_, ELitTrue_) ->
+                    return e1
+
                 (ELitFalse_, _) -> do
                     -- gatherApps e2
                     return ELitFalse_
 
                 (_, ELitFalse_) -> do
-                    -- gatherApps e1
+                    gatherApps e1
                     return ELitFalse_
 
                 (_, _) ->
@@ -499,12 +507,18 @@ exprConv expr =
                 (ELitFalse_, ELitFalse_) ->
                     return ELitFalse_
 
+                (ELitFalse_, _) ->
+                    return e2
+
+                (_, ELitFalse_) ->
+                    return e1
+
                 (ELitTrue_, _) -> do
                     -- gatherApps e2
                     return ELitTrue_
 
                 (_, ELitTrue_) -> do
-                    -- gatherApps e1
+                    gatherApps e1
                     return ELitTrue_
 
                 (_, _) ->
