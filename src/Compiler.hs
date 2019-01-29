@@ -11,7 +11,7 @@ import CompilerUtility
 compile :: Program_ -> IO ()
 
 compile (Program_ defs) = do
-    putStrLn $ show $ Program_ defs
+    -- putStrLn $ show $ Program_ defs
     let state = execState (compDefs defs) startState
     putStrLn $ unlines $ reverse $ heap state
     putStrLn $ unlines $ reverse $ code state
@@ -188,6 +188,7 @@ addExpr expr =
         EApp_ (Ident_ fIdent) exprs -> do
             pushArgs $ reverse exprs
             emitSingle "call" fIdent
+            restoreEsp exprs
             return "%eax"
         EString_ str -> do
             res <- addToHeap str

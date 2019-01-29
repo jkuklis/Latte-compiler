@@ -183,6 +183,15 @@ getHelper helper reg = do
     return res
 
 
+restoreEsp :: [Expr_] -> CS ()
+
+restoreEsp exprs =
+    let
+        len = length exprs
+        lenConstant = "$" ++ (show (4 * len))
+    in when (len /= 0) $ emitDouble "addl" lenConstant frame
+
+
 addLines :: [String] -> CS ()
 
 addLines toAdd =
