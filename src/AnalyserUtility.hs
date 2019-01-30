@@ -11,8 +11,9 @@ import AbstractTree
 putErr = hPutStr stderr
 putErrLn = hPutStrLn stderr
 
+type FunProto = (Pos, Type Pos, [Arg Pos])
 
-type FunMap = M.Map Ident (Pos, Type Pos, [Arg Pos])
+type FunMap = M.Map Ident FunProto
 
 type ClassProto = (Pos, FunMap, VarMap, Maybe Ident)
 

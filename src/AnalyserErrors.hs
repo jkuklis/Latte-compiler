@@ -185,6 +185,14 @@ msgNotClass (Ident ident) vType pos prevPos =
     ++ (posInfo (ident ++ " declared") prevPos)
 
 
+msgClassProto :: Pos -> Ident -> Ident -> AS ()
+
+msgClassProto pos (Ident object) (Ident classIdent) =
+    addError $ "Object " ++ object ++ " of class " ++ classIdent
+    ++ "has no class prototype!\n"
+    ++ (posInfo "Used" pos)
+
+
 msgAttributeUndefined :: Pos -> Ident -> Ident -> AS ()
 
 msgAttributeUndefined pos (Ident object) (Ident attr) =

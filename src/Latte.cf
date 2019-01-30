@@ -84,10 +84,6 @@ Class.     Type ::= Ident ;
 
 EVar.      Expr6 ::= Ident ;
 
-ENull.     Expr6 ::= "(" Ident ")" "null" ;
-
-ENew.      Expr6 ::= "new" Ident ;
-
 ELitInt.   Expr6 ::= Integer ;
 
 ELitTrue.  Expr6 ::= "true" ;
@@ -97,6 +93,10 @@ ELitFalse. Expr6 ::= "false" ;
 EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
 
 EString.   Expr6 ::= String ;
+
+ENull.     Expr6 ::= "(" Ident ")" "null" ;
+
+ENew.      Expr6 ::= "new" Ident ;
 
 EAttr.     Expr6 ::=  Ident "." Ident ;
 
