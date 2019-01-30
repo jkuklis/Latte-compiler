@@ -177,6 +177,31 @@ msgClassUndefined (Ident ident) pos =
     ++ (posInfo "Used" pos)
 
 
+msgNotClass :: Ident -> Type Pos -> Pos -> Pos -> AS ()
+
+msgNotClass (Ident ident) vType pos prevPos =
+    addError $ ident ++ " is not an object, it is of type " ++ (showType vType) ++ "!\n"
+    ++ (posInfo "Used" pos)
+    ++ (posInfo (ident ++ " declared") prevPos)
+
+
+msgAttributeUndefined :: Pos -> Ident -> Ident -> AS ()
+
+msgAttributeUndefined pos (Ident object) (Ident attr) =
+    addError $ "No attribute " ++ attr
+    ++ " in class " ++ object
+    ++ (posInfo "Used" pos)
+
+
+msgAttrType :: Pos -> Ident -> Ident -> Type Pos -> Type Pos -> AS ()
+
+msgAttrType pos (Ident classIdent) (Ident attr) attrType eType =
+    addError $ "Incompatible types for class " ++ classIdent
+    ++ " attribute " ++ attr ++ "!\n"
+    ++ "Attribute of type: " ++ (showType attrType)
+    ++ " , expression of type: " ++ (showType eType) ++ "\n"
+    ++ (posInfo "Used" pos)
+
 msgNotVoidReturn :: Pos -> AS ()
 
 msgNotVoidReturn pos = do

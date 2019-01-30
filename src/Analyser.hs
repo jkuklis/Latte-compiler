@@ -221,13 +221,15 @@ addArgs [] =
     return ()
 
 
-addArgs (arg:args) = do
-    let Arg pos type_ ident = arg
+addArgs ((Arg pos type_ ident):args) = do
     when (singleQuotes ident) $ msgQuote pos ident
 
     case type_ of
         Void _ ->
             msgVoidArg pos ident
+        Class cPos classIdent -> do
+            class_ <- getClassProto classIdent
+            when (class_ == Nothing) $ msgClassUndefined classIdent cPos
         _ ->
             return ()
     outer <- gets $ M.lookup ident . outVarMap
@@ -288,6 +290,11 @@ checkStmt st = case st of
                 checkTypes eType vType $ msgAssign ident pos vType prevPos
             Nothing ->
                 msgVarUndeclared ident pos
+        return False
+
+    AttrAss pos object attr expr -> do
+        eType <- checkExpr expr
+        checkAttributeType pos object attr eType
         return False
 
     Incr pos ident -> do
@@ -365,6 +372,30 @@ checkTypes eType dType action = case eType of
         return ()
     Just (eType) ->
         when (not (cmpTypes dType eType)) (action eType)
+
+
+checkAttributeType :: Pos -> Ident -> Ident -> Maybe (Type Pos) -> AS ()
+
+checkAttributeType pos object attr eType = do
+    var <- findVar object
+    case var of
+        Just (prevPos, vType) ->
+            case vType of
+                Class cPos classIdent -> do
+                    proto <- getClassProto classIdent
+                    case proto of
+                        Just (_, _, vMap, _) ->
+                            case M.lookup attr vMap of
+                                Just (attrPos, attrType) ->
+                                    checkTypes eType attrType $
+                                        msgAttrType pos object attr attrType
+
+                                Nothing -> msgAttributeUndefined pos classIdent attr
+                        Nothing -> return ()
+                _ -> msgNotClass object vType pos prevPos
+
+        Nothing ->
+            msgVarUndeclared object pos
 
 
 checkDecl :: Type Pos -> [Item Pos] -> AS ()

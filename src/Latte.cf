@@ -82,9 +82,9 @@ Class.     Type ::= Ident ;
 
 -- Expressions ---------------------------------------------
 
-ENull.     Expr6 ::= "(" Ident ")" "null" ;
 EVar.      Expr6 ::= Ident ;
 
+ENull.     Expr6 ::= "(" Ident ")" "null" ;
 
 ENew.      Expr6 ::= "new" Ident ;
 
