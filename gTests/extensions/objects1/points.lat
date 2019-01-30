@@ -48,14 +48,14 @@ int main () {
   p = q;
 
   p.move(3,5);
- 
+
   r.move(1,3);
   r.moveZ(6);
   r.moveW(2);
 
-  printInt(p.getX());  
-  printInt(p.getY());  
-  printInt(q.getZ());  
+  printInt(p.getX());
+  printInt(p.getY());
+  printInt(q.getZ());
   printInt(r.getW());
   return 0;
 

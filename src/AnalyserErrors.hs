@@ -195,9 +195,33 @@ msgClassProto pos (Ident object) (Ident classIdent) =
 
 msgAttributeUndefined :: Pos -> Ident -> Ident -> AS ()
 
-msgAttributeUndefined pos (Ident object) (Ident attr) =
+msgAttributeUndefined pos (Ident class_) (Ident attr) =
     addError $ "No attribute " ++ attr
-    ++ " in class " ++ object
+    ++ " in class " ++ class_
+    ++ (posInfo "Used" pos)
+
+
+msgMethodUndefined :: Pos -> Ident -> Ident -> AS ()
+
+msgMethodUndefined pos (Ident class_) (Ident method) =
+    addError $ "No method " ++ method
+    ++ " in class " ++ class_
+    ++ (posInfo "Used" pos)
+
+
+msgSelfAttr :: Pos -> Ident -> AS ()
+
+msgSelfAttr pos (Ident attr) =
+    addError $ "Self used with attribute " ++ attr
+    ++ " not inside class definition!\n"
+    ++ (posInfo "Used" pos)
+
+
+msgSelfMethod :: Pos -> Ident -> AS ()
+
+msgSelfMethod pos (Ident attr) =
+    addError $ "Self used with method " ++ attr
+    ++ " not inside class definition!\n"
     ++ (posInfo "Used" pos)
 
 

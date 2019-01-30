@@ -43,7 +43,7 @@ data Stmt_
 data Item_ = NoInit_ Ident_ | Init_ Ident_ Expr_
   deriving (Eq, Ord, Show, Read)
 
-data Type_ = Int_ | Str_ | Bool_ | Void_ | Fun_ Type_ [Type_] | None_
+data Type_ = Int_ | Str_ | Bool_ | Void_ | Class_ Ident_ | Fun_ Type_ [Type_] | None_
   deriving (Eq, Ord, Show, Read)
 
 data Expr_

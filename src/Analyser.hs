@@ -294,7 +294,7 @@ checkStmt st = case st of
 
     AttrAss pos object attr expr -> do
         eType <- checkExpr expr
-        aType <- getAttributeType pos object attr
+        aType <- getObjectAttrType pos object attr
 
         case aType of
             Nothing -> return ()
@@ -380,22 +380,15 @@ checkTypes eType dType action = case eType of
         when (not (cmpTypes dType eType)) (action eType)
 
 
-getObjectProto :: Pos -> Ident -> AS (Maybe (ClassProto, Ident))
+getClass :: Pos -> Ident -> AS (Maybe Ident)
 
-getObjectProto pos object = do
+getClass pos object = do
     var <- findVar object
     case var of
         Just (prevPos, vType) ->
             case vType of
-                Class cPos classIdent -> do
-                    proto <- getClassProto classIdent
-                    case proto of
-                        Just classProto ->
-                            return $ Just (classProto, classIdent)
-
-                        Nothing -> do
-                            msgClassProto pos object classIdent
-                            return Nothing
+                Class cPos classIdent ->
+                    return $ Just classIdent
                 _ -> do
                     msgNotClass object vType pos prevPos
                     return Nothing
@@ -405,21 +398,96 @@ getObjectProto pos object = do
             return Nothing
 
 
-getAttributeType :: Pos -> Ident -> Ident -> AS (Maybe (Type Pos))
+tryGetClassProto :: Pos -> Maybe Ident -> AS (Maybe ClassProto)
 
-getAttributeType pos object attr = do
-    proto <- getObjectProto pos object
+tryGetClassProto pos class_ =
+    case class_ of
+        Just classIdent -> do
+            proto <- getClassProto classIdent
+            case proto of
+                Just classProto ->
+                    return $ Just classProto
+
+                Nothing -> do
+                    msgClassProto pos classIdent classIdent
+                    return Nothing
+        Nothing ->
+            return Nothing
+
+
+getAttributeType :: Pos -> Maybe Ident -> Ident -> AS (Maybe (Type Pos))
+
+getAttributeType pos class_ attr = do
+    proto <- tryGetClassProto pos class_
     case proto of
-        Just ((_, _, vMap, _), classIdent) ->
+        Just (_, _, vMap, extended) ->
             case M.lookup attr vMap of
                 Just (attrPos, attrType) ->
                     return $ Just attrType
 
-                Nothing -> do
-                    msgAttributeUndefined pos classIdent attr
-                    return Nothing
+                Nothing ->
+                    getAttributeType pos extended attr
 
-        Nothing -> return Nothing
+        Nothing ->
+            return Nothing
+
+
+getObjectAttrType :: Pos -> Ident -> Ident -> AS (Maybe (Type Pos))
+
+getObjectAttrType pos object attr = do
+    class_ <- getClass pos object
+    getClassAttrType pos class_ attr
+
+
+getClassAttrType :: Pos -> Maybe Ident -> Ident -> AS (Maybe (Type Pos))
+
+getClassAttrType pos class_ attr = do
+    aType <- getAttributeType pos class_ attr
+    case aType of
+        Nothing ->
+            case class_ of
+                Just classIdent ->
+                    msgAttributeUndefined pos classIdent attr
+                _ -> return ()
+        _ -> return ()
+    return aType
+
+
+getMethod :: Pos -> Maybe Ident -> Ident -> AS (Maybe FunProto)
+
+getMethod pos class_ method = do
+    proto <- tryGetClassProto pos class_
+    case proto of
+        Just (_, fMap, _, extended) ->
+            let fun = M.lookup method fMap
+                in case fun of
+                    Just _ ->
+                        return fun
+                    Nothing ->
+                        getMethod pos extended method
+        Nothing ->
+            return Nothing
+
+
+getObjectMethod :: Pos -> Ident -> Ident -> AS (Maybe FunProto)
+
+getObjectMethod pos object method = do
+    class_ <- getClass pos object
+    getMethod pos class_ method
+
+
+getClassMethod :: Pos -> Maybe Ident -> Ident -> AS (Maybe FunProto)
+
+getClassMethod pos class_ method = do
+    fun <- getMethod pos class_ method
+    case fun of
+        Nothing ->
+            case class_ of
+                Just classIdent ->
+                    msgMethodUndefined pos classIdent method
+                _ -> return ()
+        _ -> return ()
+    return fun
 
 
 checkDecl :: Type Pos -> [Item Pos] -> AS ()
@@ -489,17 +557,30 @@ checkExpr expr = case expr of
                 return $ Just $ Class pos ident
 
     EAttr pos object attr ->
-        getAttributeType pos object attr
+        getObjectAttrType pos object attr
 
     EMethod pos object method exprs -> do
-        proto <- getObjectProto pos object
-        case proto of
-            Just ((_, fMap, _, _), _) ->
-                let fun = M.lookup method fMap
-                in checkApp fun method pos exprs
+        fun <- getObjectMethod pos object method
+        checkApp fun method pos exprs
 
-            Nothing -> return Nothing
+    EASelf pos attr -> do
+        class_ <- gets curClass
+        case class_ of
+            Nothing -> do
+                msgSelfAttr pos attr
+                return Nothing
+            Just _ ->
+                getClassAttrType pos class_ attr
 
+    EMSelf pos method exprs -> do
+        class_ <- gets curClass
+        case class_ of
+            Nothing -> do
+                msgSelfMethod pos method
+                return Nothing
+            Just _ -> do
+                fun <- getClassMethod pos class_ method
+                checkApp fun method pos exprs
 
     Neg pos expr -> do
         eType <- checkExpr expr
@@ -656,6 +737,8 @@ checkRel (ERel pos e1 op e2) =
                         Bool _ -> placeHint oPos Bool_
                         Str _ -> placeHint oPos Str_
                         Void _ -> msgVoidComp pos
+                        Class _ (Ident ident) ->
+                            placeHint oPos $ Class_ $ Ident_ ident
                     checkTypes eType2 eType1 $ msgEqType pos eType1
 
                 Nothing ->
@@ -722,7 +805,7 @@ constantBool expr = case expr of
                         con2 <- constantStr e2
                         sameVal con1 con2
 
-                    Void _ -> return Nothing
+                    _ -> return Nothing
 
             NE pos -> do
                 con <- constantBool (ERel pos e1 (EQU pos) e2)

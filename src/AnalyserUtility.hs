@@ -19,7 +19,9 @@ type ClassProto = (Pos, FunMap, VarMap, Maybe Ident)
 
 type ClassMap = M.Map Ident ClassProto
 
-type VarMap = M.Map Ident (Pos, Type Pos)
+type VarProto = (Pos, Type Pos)
+
+type VarMap = M.Map Ident VarProto
 
 type CheckedMap = M.Map Ident Bool
 
@@ -66,7 +68,7 @@ startState = AnalysisState {
 }
 
 
-findVar :: Ident -> AS (Maybe (Pos, Type Pos))
+findVar :: Ident -> AS (Maybe VarProto)
 
 findVar ident = do
     loc <- gets $ M.lookup ident . locVarMap
@@ -76,16 +78,21 @@ findVar ident = do
         Just _ -> return loc
         Nothing -> case out of
             Just _ -> return out
-            Nothing -> do
-                class_ <- gets curClass
-                case class_ of
-                    Nothing -> return Nothing
-                    Just clIdent -> do
-                        Just (_, _, vMap, _) <- gets $ M.lookup clIdent . classMap
-                        return $ M.lookup ident vMap
+            Nothing -> findAttr ident
 
 
-findLoc :: Ident -> AS (Maybe (Pos, Type Pos))
+findAttr :: Ident -> AS (Maybe VarProto)
+
+findAttr ident = do
+    class_ <- gets curClass
+    case class_ of
+        Nothing -> return Nothing
+        Just clIdent -> do
+            Just (_, _, vMap, _) <- gets $ M.lookup clIdent . classMap
+            return $ M.lookup ident vMap
+
+
+findLoc :: Ident -> AS (Maybe VarProto)
 
 findLoc ident =
     gets $ M.lookup ident . locVarMap
