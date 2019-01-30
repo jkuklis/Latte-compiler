@@ -9,9 +9,10 @@ import Compiler (compile)
 main = do
     input <- getContents
     (continue, typeHints) <- analyse input
-    if not continue
-        then exitFailure
-        else do
-            prog <- convert input typeHints
-            compile prog
-            exitSuccess
+    return ()
+    -- if not continue
+    --     then exitFailure
+    --     else do
+    --         prog <- convert input typeHints
+    --         compile prog
+    --         exitSuccess

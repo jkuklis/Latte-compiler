@@ -25,8 +25,12 @@ analyse input =
                 return (False, M.empty)
 
             Ok (Program _ defs) -> do
+                -- putErrLn $ show defs
                 let statePrototypes = execState (getPrototypes defs) startState
-                let state = execState (checkFunctions defs) statePrototypes
+                let state = execState (checkDefinitions defs) statePrototypes
+
+                -- let state = statePrototypes
+
                 if continue state
                     then
                         putErrLn "OK\n"
@@ -41,10 +45,52 @@ getPrototypes :: [TopDef Pos] -> AS ()
 getPrototypes [] = do
     main <- gets $ M.lookup (Ident "main") . funMap
     when (main == Nothing) $ msgNoMain
+    checkInheritance
 
 
 getPrototypes (def:defs) = do
-    let FnDef pos type_ ident args block = def
+    case def of
+        FnDef _ _ _ _ _ -> getFunProto def
+        ClDef _ _ _ -> getBaseClassProto def
+        ClInher _ _ _ _ -> getInhClassProto def
+
+    getPrototypes defs
+
+
+checkInheritance :: AS ()
+
+checkInheritance = do
+    classes <- gets classMap
+    forM_ (M.toList classes) addUnchecked
+    forM_ (M.toList classes) (checkInherits [] classes)
+
+
+checkInherits :: [Ident] -> ClassMap -> (Ident, ClassProto) -> AS ()
+
+checkInherits previous classes (this, (pos, _, _, extended)) = do
+    Just checked <- gets $ M.lookup this . checkedClasses
+    if not checked
+        then return ()
+        else do
+            modify $ \s -> s { checkedClasses = M.insert this True (checkedClasses s) }
+            case extended of
+                Nothing -> return ()
+                Just ext -> do
+                    let extProto = M.lookup ext classes
+                    if extProto == Nothing
+                        then msgNoBaseClass pos this ext
+                        else if this == ext
+                            then msgExtendSelf pos this
+                            else if elem this previous
+                                then msgCyclicDep pos this ext
+                                else
+                                    let Just proto = extProto
+                                    in checkInherits (this : previous) classes (ext, proto)
+
+
+getFunProto :: TopDef Pos -> AS ()
+
+getFunProto f@(FnDef pos type_ ident args block) = do
     fun <- gets $ M.lookup ident . funMap
     case fun of
         Just (prevPos, _, _) ->
@@ -54,32 +100,106 @@ getPrototypes (def:defs) = do
                 then do
                     when (type_ /= Int pos) $ msgMainType type_ pos
                     when (args /= []) $ msgMainArgs pos
-                    when (type_ == Int pos && args == []) $
-                        addPrototype ident pos type_ args
+                    when (type_ == Int pos && args == []) $ addPrototype f
                 else do
                     when (singleQuotes ident) $ msgQuote pos ident
-                    addPrototype ident pos type_ args
-    getPrototypes defs
+                    addPrototype f
 
 
-checkFunctions :: [TopDef Pos] -> AS ()
+getBaseClassProto :: TopDef Pos -> AS ()
 
-checkFunctions [] =
+getBaseClassProto c@(ClDef pos ident block) = do
+    cl <- gets $ M.lookup ident . classMap
+    case cl of
+        Just (prevPos, _, _, _) ->
+            msgClassDefined ident pos prevPos
+        Nothing -> do
+            (funMap, varMap) <- examine block -- TODO
+            addBaseClass c funMap varMap
+
+
+getInhClassProto :: TopDef Pos -> AS ()
+
+getInhClassProto c@(ClInher pos this extended block) = do
+    cl <- gets $ M.lookup this . classMap
+    case cl of
+        Just (prevPos, _, _, _) ->
+            msgClassDefined this pos prevPos
+        Nothing -> do
+            (funMap, varMap) <- examine block
+            addInhClass c funMap varMap
+
+
+examine :: ClassBlock Pos -> AS (FunMap, VarMap)
+
+examine (ClBlock pos classMembers) =
+    let
+        fMap = M.empty
+        vMap = M.empty
+    in examineAcc classMembers fMap vMap
+
+
+examineAcc :: [ClMember Pos] -> FunMap -> VarMap -> AS (FunMap, VarMap)
+
+examineAcc [] fMap vMap = return (fMap, vMap)
+
+examineAcc ((ClAttr pos type_ ident):members) fMap vMap =
+    let lookedUp = M.lookup ident vMap
+    in case lookedUp of
+        Just (prevPos, _) -> do
+            msgPrevAttr ident pos prevPos
+            examineAcc members fMap vMap
+        Nothing ->
+            let newVMap = M.insert ident (pos, type_) vMap
+            in examineAcc members fMap newVMap
+
+
+examineAcc ((ClFun pos type_ ident args _):members) fMap vMap =
+    let lookedUp = M.lookup ident fMap
+    in case lookedUp of
+        Just (prevPos, _, _) -> do
+            msgPrevMet ident pos prevPos
+            examineAcc members fMap vMap
+        Nothing ->
+            let newFMap = M.insert ident (pos, type_, args) fMap
+            in examineAcc members newFMap vMap
+
+
+checkDefinitions :: [TopDef Pos] -> AS ()
+
+checkDefinitions [] =
     return ()
 
-checkFunctions (def:defs) = do
-    let FnDef pos type_ ident args (Block bPos stmts) = def
-    setRetType type_
-    setCur ident
-    cleanVars
-    addArgs args
-    returned <- checkStmts stmts
-    case type_ of
-        Void tPos ->
-            return ()
-        _ -> do
-            when (not returned) $ msgNoReturn ident pos
-    checkFunctions defs
+checkDefinitions (def:defs) = do
+    case def of
+        FnDef pos type_ ident args (Block bPos stmts) -> do
+            setRetType type_
+            setCur ident
+            cleanVars
+            addArgs args
+            returned <- checkStmts stmts
+            case type_ of
+                Void tPos ->
+                    return ()
+                _ -> do
+                    when (not returned) $ msgNoReturn ident pos
+
+        ClDef pos ident (ClBlock bPos members) -> do
+            setClass ident
+            checkClassMembers members
+            cleanClass
+
+        ClInher pos ident extended (ClBlock bPos members) -> do
+            setInherClass ident extended
+            checkClassMembers members
+            cleanInherClass
+
+    checkDefinitions defs
+
+
+checkClassMembers :: [ClMember Pos] -> AS ()
+
+checkClassMembers members = return ()
 
 
 addArgs :: [Arg Pos] -> AS ()

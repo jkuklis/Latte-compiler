@@ -31,6 +31,46 @@ msgFunDefined ident pos prevPos =
     msgRedefined "Function" ident pos prevPos
 
 
+msgClassDefined :: Ident -> Pos -> Pos -> AS ()
+
+msgClassDefined ident pos prevPos =
+    msgRedefined "Class" ident pos prevPos
+
+
+msgNoBaseClass :: Pos -> Ident -> Ident -> AS ()
+
+msgNoBaseClass pos (Ident this) (Ident extended) =
+    addError $ "No base class " ++ extended ++ " for: " ++ this ++ "!\n"
+    ++ (posInfo "Defined" pos)
+
+
+msgExtendSelf :: Pos -> Ident -> AS ()
+
+msgExtendSelf pos (Ident this) =
+    addError $ "Class " ++ this ++ " extends itself!\n"
+    ++ (posInfo "Defined" pos)
+
+
+msgCyclicDep :: Pos -> Ident -> Ident -> AS ()
+
+msgCyclicDep pos (Ident this) (Ident extended) =
+    addError $ "Cyclic dependency for extending " ++ extended
+    ++ " in " ++ this ++ "!\n"
+    ++ (posInfo "Defined" pos)
+
+
+msgPrevAttr :: Ident -> Pos -> Pos -> AS ()
+
+msgPrevAttr ident pos prevPos =
+    msgRedefined "Class attribute" ident pos prevPos
+
+
+msgPrevMet :: Ident -> Pos -> Pos -> AS ()
+
+msgPrevMet ident pos prevPos =
+    msgRedefined "Class method" ident pos prevPos
+    
+
 msgSameArg :: Ident -> Pos -> Pos -> AS ()
 
 msgSameArg ident pos prevPos =

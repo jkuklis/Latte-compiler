@@ -14,12 +14,22 @@ putErrLn = hPutStrLn stderr
 
 type FunMap = M.Map Ident (Pos, Type Pos, [Arg Pos])
 
+type ClassProto = (Pos, FunMap, VarMap, Maybe Ident)
+
+type ClassMap = M.Map Ident ClassProto
+
 type VarMap = M.Map Ident (Pos, Type Pos)
+
+type CheckedMap = M.Map Ident Bool
 
 data AnalysisState = AnalysisState {
     continue :: Bool,
     errors :: [String],
     funMap :: FunMap,
+    classMap :: ClassMap,
+    checkedClasses :: CheckedMap,
+    curClass :: Maybe Ident,
+    curBaseClass :: Maybe Ident,
     outVarMap :: VarMap,
     locVarMap :: VarMap,
     retType :: Type Pos,
@@ -47,6 +57,10 @@ startState = AnalysisState {
     continue = True,
     errors = [],
     funMap = M.fromList startFuns,
+    classMap = M.empty,
+    checkedClasses = M.empty,
+    curClass = Nothing,
+    curBaseClass = Nothing,
     outVarMap = M.empty,
     locVarMap = M.empty,
     retType = defaultType,
@@ -91,10 +105,53 @@ addError :: String -> AS ()
 addError error =
     modify $ \s -> s { errors = (error : (errors s)), continue = False }
 
-addPrototype :: Ident -> Pos -> Type Pos -> [Arg Pos] -> AS ()
 
-addPrototype ident pos type_ args =
+addPrototype :: TopDef Pos -> AS ()
+
+addPrototype (FnDef pos type_ ident args _) =
     modify $ \s -> s { funMap = M.insert ident (pos, type_, args) (funMap s) }
+
+
+addBaseClass :: TopDef Pos -> FunMap -> VarMap -> AS ()
+
+addBaseClass (ClDef pos ident _) fMap vMap =
+    modify $ \s -> s { classMap = M.insert ident (pos, fMap, vMap, Nothing) (classMap s) }
+
+
+addInhClass :: TopDef Pos -> FunMap -> VarMap -> AS ()
+
+addInhClass (ClInher pos this extended _) fMap vMap =
+    modify $ \s -> s { classMap = M.insert this (pos, fMap, vMap, Just extended) (classMap s) }
+
+
+addUnchecked :: (Ident, ClassProto) -> AS ()
+
+addUnchecked (this, _) =
+    modify $ \s -> s { checkedClasses = M.insert this False (checkedClasses s) }
+
+
+setClass :: Ident -> AS ()
+
+setClass ident =
+    modify $ \s -> s { curClass = Just ident }
+
+
+setInherClass :: Ident -> Ident -> AS ()
+
+setInherClass ident extended =
+    modify $ \s -> s { curClass = Just ident, curBaseClass = Just extended }
+
+
+cleanClass :: AS ()
+
+cleanClass =
+    modify $ \s -> s { curClass = Nothing }
+
+
+cleanInherClass :: AS ()
+
+cleanInherClass =
+    modify $ \s -> s { curClass = Nothing, curBaseClass = Nothing }
 
 
 addOuter :: Ident -> Pos -> Type Pos -> AS ()
