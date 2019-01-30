@@ -29,13 +29,10 @@ data AnalysisState = AnalysisState {
     classMap :: ClassMap,
     checkedClasses :: CheckedMap,
     curClass :: Maybe Ident,
-    curBaseClass :: Maybe Ident,
     outVarMap :: VarMap,
     locVarMap :: VarMap,
     retType :: Type Pos,
-    ret :: Bool,
     curFun :: Ident,
-    outermostBlock :: Bool,
     typeHints :: TypeHints
     } deriving Show
 
@@ -60,13 +57,10 @@ startState = AnalysisState {
     classMap = M.empty,
     checkedClasses = M.empty,
     curClass = Nothing,
-    curBaseClass = Nothing,
     outVarMap = M.empty,
     locVarMap = M.empty,
     retType = defaultType,
-    ret = True,
     curFun = Ident "",
-    outermostBlock = True,
     typeHints = M.empty
 }
 
@@ -76,9 +70,18 @@ findVar :: Ident -> AS (Maybe (Pos, Type Pos))
 findVar ident = do
     loc <- gets $ M.lookup ident . locVarMap
     out <- gets $ M.lookup ident . outVarMap
+
     case loc of
         Just _ -> return loc
-        Nothing -> return out
+        Nothing -> case out of
+            Just _ -> return out
+            Nothing -> do
+                class_ <- gets curClass
+                case class_ of
+                    Nothing -> return Nothing
+                    Just clIdent -> do
+                        Just (_, _, vMap, _) <- gets $ M.lookup clIdent . classMap
+                        return $ M.lookup ident vMap
 
 
 findLoc :: Ident -> AS (Maybe (Pos, Type Pos))
@@ -90,14 +93,7 @@ findLoc ident =
 setRetType :: Type Pos -> AS ()
 
 setRetType type_ =
-    modify $ \s -> s { retType = type_, ret = False }
-
-
-tryMarkReturn :: AS ()
-
-tryMarkReturn = do
-    outermost <- gets outermostBlock
-    when outermost $ modify $ \s -> s { ret = True }
+    modify $ \s -> s { retType = type_ }
 
 
 addError :: String -> AS ()
@@ -124,6 +120,12 @@ addInhClass (ClInher pos this extended _) fMap vMap =
     modify $ \s -> s { classMap = M.insert this (pos, fMap, vMap, Just extended) (classMap s) }
 
 
+getClassProto :: Ident -> AS (Maybe ClassProto)
+
+getClassProto ident =
+    gets $ M.lookup ident . classMap
+
+
 addUnchecked :: (Ident, ClassProto) -> AS ()
 
 addUnchecked (this, _) =
@@ -136,22 +138,10 @@ setClass ident =
     modify $ \s -> s { curClass = Just ident }
 
 
-setInherClass :: Ident -> Ident -> AS ()
-
-setInherClass ident extended =
-    modify $ \s -> s { curClass = Just ident, curBaseClass = Just extended }
-
-
 cleanClass :: AS ()
 
 cleanClass =
     modify $ \s -> s { curClass = Nothing }
-
-
-cleanInherClass :: AS ()
-
-cleanInherClass =
-    modify $ \s -> s { curClass = Nothing, curBaseClass = Nothing }
 
 
 addOuter :: Ident -> Pos -> Type Pos -> AS ()
@@ -208,21 +198,7 @@ cleanOuter = setOuter M.empty
 setCur :: Ident -> AS ()
 
 setCur ident =
-    modify $ \s -> s { curFun = ident, outermostBlock = True }
-
-
-innerBlock :: AS Bool
-
-innerBlock = do
-    isOutermost <- gets outermostBlock
-    modify $ \s -> s { outermostBlock = False }
-    return isOutermost
-
-
-outerBlock :: Bool -> AS ()
-
-outerBlock isOutermost =
-    modify $ \s -> s { outermostBlock = isOutermost }
+    modify $ \s -> s { curFun = ident }
 
 
 cmpTypes :: Type Pos -> Type Pos -> Bool
@@ -231,6 +207,7 @@ cmpTypes (Int pos1) (Int pos2) = True
 cmpTypes (Str pos1) (Str pos2) = True
 cmpTypes (Bool pos1) (Bool pos2) = True
 cmpTypes (Void pos1) (Void pos2) = True
+cmpTypes (Class pos1 ident1) (Class pos2 ident2) = ident1 == ident2
 cmpTypes _ _ = False
 
 
@@ -241,6 +218,7 @@ showType type_ = case type_ of
     Str pos -> "str"
     Bool pos -> "bool"
     Void pos -> "void"
+    Class pos (Ident ident) -> "class " ++ ident
 
 
 defaultPos :: Pos

@@ -95,7 +95,7 @@ getFunProto f@(FnDef pos type_ ident args block) = do
     case fun of
         Just (prevPos, _, _) ->
             msgFunDefined ident pos prevPos
-        Nothing -> do
+        Nothing ->
             if ident == Ident "main"
                 then do
                     when (type_ /= Int pos) $ msgMainType type_ pos
@@ -109,8 +109,8 @@ getFunProto f@(FnDef pos type_ ident args block) = do
 getBaseClassProto :: TopDef Pos -> AS ()
 
 getBaseClassProto c@(ClDef pos ident block) = do
-    cl <- gets $ M.lookup ident . classMap
-    case cl of
+    class_ <- gets $ M.lookup ident . classMap
+    case class_ of
         Just (prevPos, _, _, _) ->
             msgClassDefined ident pos prevPos
         Nothing -> do
@@ -121,8 +121,8 @@ getBaseClassProto c@(ClDef pos ident block) = do
 getInhClassProto :: TopDef Pos -> AS ()
 
 getInhClassProto c@(ClInher pos this extended block) = do
-    cl <- gets $ M.lookup this . classMap
-    case cl of
+    class_ <- gets $ M.lookup this . classMap
+    case class_ of
         Just (prevPos, _, _, _) ->
             msgClassDefined this pos prevPos
         Nothing -> do
@@ -173,6 +173,11 @@ checkDefinitions [] =
 checkDefinitions (def:defs) = do
     case def of
         FnDef pos type_ ident args (Block bPos stmts) -> do
+            case type_ of
+                Class cPos classIdent -> do
+                    class_ <- getClassProto classIdent
+                    when (class_ == Nothing) $ msgClassUndefined classIdent cPos
+                _ -> return ()
             setRetType type_
             setCur ident
             cleanVars
@@ -190,16 +195,24 @@ checkDefinitions (def:defs) = do
             cleanClass
 
         ClInher pos ident extended (ClBlock bPos members) -> do
-            setInherClass ident extended
+            setClass ident
             checkClassMembers members
-            cleanInherClass
+            cleanClass
 
     checkDefinitions defs
 
 
 checkClassMembers :: [ClMember Pos] -> AS ()
 
-checkClassMembers members = return ()
+checkClassMembers [] =
+    return ()
+
+checkClassMembers ((ClAttr pos type_ ident):members) =
+    checkClassMembers members
+
+checkClassMembers ((ClFun pos type_ ident args block):members) = do
+    checkDefinitions [FnDef pos type_ ident args block]
+    checkClassMembers members
 
 
 addArgs :: [Arg Pos] -> AS ()
@@ -256,8 +269,15 @@ checkStmt st = case st of
         case dType of
             Void _ ->
                 msgVoidVar pos
+
+            Class _ ident -> do
+                class_ <- getClassProto ident
+                when (class_ == Nothing) $ msgClassUndefined ident pos
+                checkDecl dType items
+
             _ ->
                 checkDecl dType items
+
         return False
 
     Ass pos ident expr -> do
@@ -469,8 +489,7 @@ checkArgs ident pos [] exprs = do
     msgTooManyArgs ident pos exprs
     checkExprs exprs
 
-checkArgs ident pos (arg:args) (expr:exprs) = do
-    let Arg _ aType aIdent = arg
+checkArgs ident pos ((Arg _ aType aIdent):args) (expr:exprs) = do
     eType <- checkExpr expr
     checkTypes eType aType $ msgArgType pos ident aIdent aType
     checkArgs ident pos args exprs

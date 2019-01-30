@@ -69,7 +69,7 @@ msgPrevMet :: Ident -> Pos -> Pos -> AS ()
 
 msgPrevMet ident pos prevPos =
     msgRedefined "Class method" ident pos prevPos
-    
+
 
 msgSameArg :: Ident -> Pos -> Pos -> AS ()
 
@@ -167,6 +167,13 @@ msgVarUndefined :: Ident -> Pos -> AS ()
 
 msgVarUndefined (Ident ident) pos =
     addError $ "Variable " ++ ident ++ " not defined!!\n"
+    ++ (posInfo "Used" pos)
+
+
+msgClassUndefined :: Ident -> Pos -> AS ()
+
+msgClassUndefined (Ident ident) pos =
+    addError $ "Class " ++ ident ++ " not defined!\n"
     ++ (posInfo "Used" pos)
 
 
