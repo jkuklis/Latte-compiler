@@ -1,7 +1,20 @@
 Kompilator Latte dla 32-bitowej architektury x86.
-Zaimplementowany bez rozszerzeń i bez optymalnego wykorzystywania rejestrów - te części mam zamiar jeszcze dopisać.
+
+Dołączyłem do projektu plik z uwagami, które Pan przesłał. Naprawiłem wszystkie
+wymienione błędy poza odpowiednim kodem skaczącym dla wyrażeń boolowskich
+- dalej operują one na zmiennych $0 i $1, a nie skaczą od razu do odpowiednich etykiet.
+
+Na tym etapie działa prawie całe analizowanie poprawności klas
+- bez przypisania postaci 'Shape a = new Rectangle;', z dwoma różnymi typami.
+
+Innych rozszerzeń nie będę robił, klasy chciałbym skończyć do środy 06.02.
+
+Całość działa jak maszyna stosowa, ale z pewnymi optymalizacjami, mającymi
+za zadanie zwiększyć efektywność użycia rejestrów.
+
 Funkcje, które nie pojawiłyby się w kodzie przez wyeliminowanie wyrażeń stałych są dodatkowo wywoływane,
 żeby zachować wszystkie efekty uboczne (wypisania na ekran, pobieranie wartości z wejścia).
+
 Zawsze prawdziwe if'y są redukowane do związanych z nimi instrukcji, zawsze fałszywe są usuwane.
 
 

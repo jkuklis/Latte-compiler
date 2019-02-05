@@ -209,14 +209,35 @@ setCur ident =
     modify $ \s -> s { curFun = ident }
 
 
-cmpTypes :: Type Pos -> Type Pos -> Bool
+cmpTypes :: Type Pos -> Type Pos -> ClassMap -> Bool
 
-cmpTypes (Int pos1) (Int pos2) = True
-cmpTypes (Str pos1) (Str pos2) = True
-cmpTypes (Bool pos1) (Bool pos2) = True
-cmpTypes (Void pos1) (Void pos2) = True
-cmpTypes (Class pos1 ident1) (Class pos2 ident2) = ident1 == ident2
+cmpTypes (Int pos1) (Int pos2) _ = True
+cmpTypes (Str pos1) (Str pos2) _ = True
+cmpTypes (Bool pos1) (Bool pos2) _ = True
+cmpTypes (Void pos1) (Void pos2) _ = True
+cmpTypes (Class pos1 ident1) (Class pos2 ident2) classes =
+    subClass ident1 ident2 classes
+cmpTypes (Class pos1 ident1) (InhClass pos2 ident2 extended2) classes =
+    subClass ident1 extended classes
+cmpTypes (InhClass pos1 ident1 extended1) (Class pos2 ident2) classes =
+    subClass ident1 ident2 classes
+cmpTypes (InhClass pos1 ident1 extended1) (InhClass pos2 ident2 extended2) classes =
+    subClass ident1 extended2 classes
 cmpTypes _ _ = False
+
+
+subClass :: Ident -> Ident -> ClassMap -> Bool
+
+subClass ident1 ident2 classes =
+    if ident1 == ident2
+        then True
+        else let classProto = M.lookup ident2 classes
+            in case classProto of
+                Just (_, _, _, extended) ->
+                    case extended of
+                        Just extIdent -> subClass ident1 extended classes
+                        Nothing -> False
+                Nothing -> False
 
 
 showType :: Type Pos -> String
@@ -227,6 +248,7 @@ showType type_ = case type_ of
     Bool pos -> "bool"
     Void pos -> "void"
     Class pos (Ident ident) -> "class " ++ ident
+    Class pos (Ident ident1) (Ident ident2) -> "class " ++ ident2 ++ " extending " ++ ident1
 
 
 defaultPos :: Pos

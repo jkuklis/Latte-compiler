@@ -76,6 +76,8 @@ Void.      Type ::= "void" ;
 
 Class.     Type ::= Ident ;
 
+-- internal   InhClass. Type ::= Ident Ident ;
+
 -- internal   Fun. Type ::= Type "(" [Type] ")" ;
 
 -- separator Type "," ;
@@ -98,13 +100,13 @@ ENull.     Expr6 ::= "(" Ident ")" "null" ;
 
 ENew.      Expr6 ::= "new" Ident ;
 
-EAttr.     Expr6 ::=  Ident "." Ident ;
-
-EMethod.   Expr6 ::= Ident "." Ident "(" [Expr] ")" ;
-
 EASelf.    Expr6 ::= "self" "." Ident ;
 
 EMSelf.    Expr6 ::= "self" "." Ident "(" [Expr] ")" ;
+
+EAttr.     Expr6 ::= Expr "." Ident ;
+
+EMethod.   Expr6 ::= Expr "." Ident "(" [Expr] ")" ;
 
 Neg.       Expr5 ::= "-" Expr6 ;
 

@@ -114,7 +114,7 @@ getBaseClassProto c@(ClDef pos ident block) = do
         Just (prevPos, _, _, _) ->
             msgClassDefined ident pos prevPos
         Nothing -> do
-            (funMap, varMap) <- examine block -- TODO
+            (funMap, varMap) <- examineClassBlockblock
             addBaseClass c funMap varMap
 
 
@@ -126,43 +126,43 @@ getInhClassProto c@(ClInher pos this extended block) = do
         Just (prevPos, _, _, _) ->
             msgClassDefined this pos prevPos
         Nothing -> do
-            (funMap, varMap) <- examine block
+            (funMap, varMap) <- examineClassBlockblock
             addInhClass c funMap varMap
 
 
-examine :: ClassBlock Pos -> AS (FunMap, VarMap)
+examineClassBlock:: ClassBlock Pos -> AS (FunMap, VarMap)
 
-examine (ClBlock pos classMembers) =
+examineClassBlock(ClBlock pos classMembers) =
     let
         fMap = M.empty
         vMap = M.empty
-    in examineAcc classMembers fMap vMap
+    in examineMembers classMembers fMap vMap
 
 
-examineAcc :: [ClMember Pos] -> FunMap -> VarMap -> AS (FunMap, VarMap)
+examineMembers :: [ClMember Pos] -> FunMap -> VarMap -> AS (FunMap, VarMap)
 
-examineAcc [] fMap vMap = return (fMap, vMap)
+examineMembers [] fMap vMap = return (fMap, vMap)
 
-examineAcc ((ClAttr pos type_ ident):members) fMap vMap =
+examineMembers ((ClAttr pos type_ ident):members) fMap vMap =
     let lookedUp = M.lookup ident vMap
     in case lookedUp of
         Just (prevPos, _) -> do
             msgPrevAttr ident pos prevPos
-            examineAcc members fMap vMap
+            examineMembers members fMap vMap
         Nothing ->
             let newVMap = M.insert ident (pos, type_) vMap
-            in examineAcc members fMap newVMap
+            in examineMembers members fMap newVMap
 
 
-examineAcc ((ClFun pos type_ ident args _):members) fMap vMap =
+examineMembers ((ClFun pos type_ ident args _):members) fMap vMap =
     let lookedUp = M.lookup ident fMap
     in case lookedUp of
         Just (prevPos, _, _) -> do
             msgPrevMet ident pos prevPos
-            examineAcc members fMap vMap
+            examineMembers members fMap vMap
         Nothing ->
             let newFMap = M.insert ident (pos, type_, args) fMap
-            in examineAcc members newFMap vMap
+            in examineMembers members newFMap vMap
 
 
 checkDefinitions :: [TopDef Pos] -> AS ()
@@ -286,8 +286,14 @@ checkStmt st = case st of
         eType <- checkExpr expr
         var <- findVar ident
         case var of
-            Just (prevPos, vType) ->
-                checkTypes eType vType $ msgAssign ident pos vType prevPos
+            Just (prevPos, vType) -> do
+                mergedType <- checkTypes eType vType $ msgAssign ident pos vType prevPos
+                var <- findLoc ident
+                case var of
+                    Just (vPos, vType) ->
+                        msgVarDeclared ident pos vPos
+                    Nothing ->
+                        addLocal ident pos dType
             Nothing ->
                 msgVarUndeclared ident pos
         return False
@@ -327,8 +333,9 @@ checkStmt st = case st of
             _ -> case eType of
                 Nothing ->
                     return False
-                Just (eType) ->
-                    if cmpTypes rType eType
+                Just (eType) -> do
+                    classes <- gets classMap
+                    if cmpTypes rType eType classes
                         then return True
                         else do
                             msgReturn pos eType
@@ -371,13 +378,23 @@ checkStmt st = case st of
         checkExpr expr
         return False
 
+
 checkTypes :: Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS ()) -> AS ()
 
 checkTypes eType dType action = case eType of
     Nothing ->
-        return ()
-    Just (eType) ->
-        when (not (cmpTypes dType eType)) (action eType)
+        return (dType)
+    Just (eType) -> do
+        classes <- gets classes
+        if not (cmpTypes dType eType classes)
+            then do
+                action eType
+                return dType
+            else case (dType, eType) of
+                (Class pos1 ident1, Class pos2 ident2) ->
+                    if ident1 == ident2
+                        then return dType
+                        else return $ InhClass ident1 ident2
 
 
 getClass :: Pos -> Ident -> AS (Maybe Ident)
@@ -498,8 +515,8 @@ checkDecl _ [] =
 checkDecl dType (item:items) = case item of
     Init pos ident expr -> do
         eType <- checkExpr expr
-        checkTypes eType dType $ msgExpDecl ident pos dType
-        checkDecl dType $ (NoInit pos ident) : items
+        mergedType <- checkTypes eType dType $ msgExpDecl ident pos dType
+        checkDecl mergedType $ (NoInit pos ident) : items
 
     NoInit pos ident -> do
         when (singleQuotes ident) $ msgQuote pos ident
