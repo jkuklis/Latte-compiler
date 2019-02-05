@@ -104,9 +104,9 @@ EASelf.    Expr6 ::= "self" "." Ident ;
 
 EMSelf.    Expr6 ::= "self" "." Ident "(" [Expr] ")" ;
 
-EAttr.     Expr6 ::= Expr "." Ident ;
+EAttr.     Expr6 ::= Ident "." Ident ;
 
-EMethod.   Expr6 ::= Expr "." Ident "(" [Expr] ")" ;
+EMethod.   Expr6 ::= Ident "." Ident "(" [Expr] ")" ;
 
 Neg.       Expr5 ::= "-" Expr6 ;
 

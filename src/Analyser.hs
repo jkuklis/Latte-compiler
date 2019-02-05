@@ -114,7 +114,7 @@ getBaseClassProto c@(ClDef pos ident block) = do
         Just (prevPos, _, _, _) ->
             msgClassDefined ident pos prevPos
         Nothing -> do
-            (funMap, varMap) <- examineClassBlockblock
+            (funMap, varMap) <- examineClassBlock block
             addBaseClass c funMap varMap
 
 
@@ -126,13 +126,13 @@ getInhClassProto c@(ClInher pos this extended block) = do
         Just (prevPos, _, _, _) ->
             msgClassDefined this pos prevPos
         Nothing -> do
-            (funMap, varMap) <- examineClassBlockblock
+            (funMap, varMap) <- examineClassBlock block
             addInhClass c funMap varMap
 
 
-examineClassBlock:: ClassBlock Pos -> AS (FunMap, VarMap)
+examineClassBlock :: ClassBlock Pos -> AS (FunMap, VarMap)
 
-examineClassBlock(ClBlock pos classMembers) =
+examineClassBlock (ClBlock pos classMembers) =
     let
         fMap = M.empty
         vMap = M.empty
@@ -287,13 +287,7 @@ checkStmt st = case st of
         var <- findVar ident
         case var of
             Just (prevPos, vType) -> do
-                mergedType <- checkTypes eType vType $ msgAssign ident pos vType prevPos
-                var <- findLoc ident
-                case var of
-                    Just (vPos, vType) ->
-                        msgVarDeclared ident pos vPos
-                    Nothing ->
-                        addLocal ident pos dType
+                checkTypes eType vType $ msgAssign ident pos vType prevPos
             Nothing ->
                 msgVarUndeclared ident pos
         return False
@@ -383,18 +377,10 @@ checkTypes :: Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS ()) -> AS ()
 
 checkTypes eType dType action = case eType of
     Nothing ->
-        return (dType)
+        return ()
     Just (eType) -> do
-        classes <- gets classes
-        if not (cmpTypes dType eType classes)
-            then do
-                action eType
-                return dType
-            else case (dType, eType) of
-                (Class pos1 ident1, Class pos2 ident2) ->
-                    if ident1 == ident2
-                        then return dType
-                        else return $ InhClass ident1 ident2
+        classes <- gets classMap
+        when (not (cmpTypes dType eType classes)) $ action eType
 
 
 getClass :: Pos -> Ident -> AS (Maybe Ident)
@@ -515,8 +501,8 @@ checkDecl _ [] =
 checkDecl dType (item:items) = case item of
     Init pos ident expr -> do
         eType <- checkExpr expr
-        mergedType <- checkTypes eType dType $ msgExpDecl ident pos dType
-        checkDecl mergedType $ (NoInit pos ident) : items
+        checkTypes eType dType $ msgExpDecl ident pos dType
+        checkDecl dType $ (NoInit pos ident) : items
 
     NoInit pos ident -> do
         when (singleQuotes ident) $ msgQuote pos ident

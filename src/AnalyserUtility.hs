@@ -217,13 +217,13 @@ cmpTypes (Bool pos1) (Bool pos2) _ = True
 cmpTypes (Void pos1) (Void pos2) _ = True
 cmpTypes (Class pos1 ident1) (Class pos2 ident2) classes =
     subClass ident1 ident2 classes
-cmpTypes (Class pos1 ident1) (InhClass pos2 ident2 extended2) classes =
-    subClass ident1 extended classes
-cmpTypes (InhClass pos1 ident1 extended1) (Class pos2 ident2) classes =
-    subClass ident1 ident2 classes
-cmpTypes (InhClass pos1 ident1 extended1) (InhClass pos2 ident2 extended2) classes =
-    subClass ident1 extended2 classes
-cmpTypes _ _ = False
+-- cmpTypes (Class pos1 ident1) (InhClass pos2 ident2 extended2) classes =
+--     subClass ident1 extended classes
+-- cmpTypes (InhClass pos1 ident1 extended1) (Class pos2 ident2) classes =
+--     subClass ident1 ident2 classes
+-- cmpTypes (InhClass pos1 ident1 extended1) (InhClass pos2 ident2 extended2) classes =
+--     subClass ident1 extended2 classes
+cmpTypes _ _ _ = False
 
 
 subClass :: Ident -> Ident -> ClassMap -> Bool
@@ -235,7 +235,7 @@ subClass ident1 ident2 classes =
             in case classProto of
                 Just (_, _, _, extended) ->
                     case extended of
-                        Just extIdent -> subClass ident1 extended classes
+                        Just extIdent -> subClass ident1 extIdent classes
                         Nothing -> False
                 Nothing -> False
 
@@ -248,7 +248,6 @@ showType type_ = case type_ of
     Bool pos -> "bool"
     Void pos -> "void"
     Class pos (Ident ident) -> "class " ++ ident
-    Class pos (Ident ident1) (Ident ident2) -> "class " ++ ident2 ++ " extending " ++ ident1
 
 
 defaultPos :: Pos
