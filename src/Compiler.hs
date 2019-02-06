@@ -35,10 +35,49 @@ compDef (FnDef_ type_ ident args block) = do
     moveFrame
     saveFunCode
 
+compDef (ClDef_ ident block) = do
+    addClass ident
+    addClassBlock ident block
+
+compDef (ClInher_ ident extended classBlock) = do
+    addInhClass ident extended
+    addClassBlock ident classBlock
+
 
 addBlock :: Block_ -> CS ()
 
 addBlock (Block_ stmts) = addStmts stmts
+
+
+addClassBlock :: Ident_ -> ClBlock_ -> CS ()
+
+addClassBlock ident (ClBlock_ members) = addMembers ident members
+
+
+addClass :: Ident_ -> CS ()
+
+addClass ident = return () -- TODO
+
+
+addInhClass :: Ident_ -> Ident_ -> CS ()
+
+addInhClass ident extended = return () -- TODO
+
+
+addMembers :: Ident_ -> [ClMember_] -> CS ()
+
+addMembers ident members =
+    mapM_ (addMember ident) members
+
+
+addMember :: Ident_ -> ClMember_ -> CS ()
+
+addMember ident (ClAttr_ type_ attrIdent) =
+    return ()
+
+addMember ident (ClFun_ type_ funIdent args block) = do
+    newIdent <- mergeIdents ident funIdent
+    compDef $ FnDef_ type_ newIdent args block
 
 
 addStmts :: [Stmt_] -> CS ()
@@ -62,6 +101,9 @@ addStmt stmt = do
 
         Ass_ ident expr ->
             addAss ident expr
+
+        AttrAss_ object attr expr ->
+            addAttrAss object attr expr
 
         Incr_ ident ->
             incr ident 1
@@ -156,6 +198,8 @@ addDecl type_ item =
                     emitDouble "movl" ("$" ++ res) pos
                 Int_ -> emitDouble "movl" "$0" pos
                 Bool_ -> emitDouble "movl" "$0" pos
+                Class_ classIdent ->
+                    emitDouble "movl" "$0" pos
 
         Init_ (Ident_ ident) expr -> do
             res <- addExpr expr
@@ -210,6 +254,13 @@ addExpr expr =
         EString_ str -> do
             res <- addToHeap str
             return $ "$" ++ res
+        ENull_ ident ->
+            return $ "$0"
+        ENew_ ident -> do
+            emitSingle "pushl" "$8" -- TODO : different length
+            emitSingle "call" "malloc"
+            return "%eax"
+
         Neg_ expr -> do
             res <- addExpr expr
             emitNeg res
@@ -396,15 +447,22 @@ addAss :: Ident_ -> Expr_ -> CS ()
 addAss (Ident_ ident) expr = do
     res <- addExpr expr
     var <- getVar ident
-    case (res, var) of
-        ('%':_, _) ->
-            emitDouble "movl" res var
-        ('$':_, _) ->
-            emitDouble "movl" res var
-        (_, _) -> do
-            let tmp = "%eax"
-            emitDouble "movl" res tmp
-            emitDouble "movl" tmp var
+    transferValues res var
+
+
+addAttrAss :: Ident_ -> Ident_ -> Expr_ -> CS ()
+
+addAttrAss (Ident_ object) (Ident_ attr) expr = do
+    res <- addExpr expr
+    obj <- getVar object
+    att <- getAttribute obj attr
+    transferValues res att
+
+
+getAttribute :: String -> String -> CS String
+
+getAttribute object attr =
+    return "%eax" -- TODO
 
 
 incr :: Ident_ -> Integer -> CS ()

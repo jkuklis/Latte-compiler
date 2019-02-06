@@ -13,7 +13,7 @@ import AnalyserErrors
 import AbstractTree
 
 
-analyse :: String -> IO (Bool, TypeHints)
+analyse :: String -> IO (Bool, TypeHints, ClassMap)
 
 analyse input =
     let tokens = myLexer input in
@@ -22,7 +22,7 @@ analyse input =
                 putErrLn "ERROR\n"
                 putErrLn "Failure to parse program!"
                 putErrLn $ error ++ "\n"
-                return (False, M.empty)
+                return (False, M.empty, M.empty)
 
             Ok (Program _ defs) -> do
                 -- putErrLn $ show defs
@@ -37,7 +37,7 @@ analyse input =
                     else do
                         putErrLn "ERROR\n"
                         putErr $ unlines $ reverse $ errors state
-                return (continue state, typeHints state)
+                return (continue state, typeHints state, classMap state)
 
 
 getPrototypes :: [TopDef Pos] -> AS ()

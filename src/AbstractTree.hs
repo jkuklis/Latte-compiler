@@ -16,10 +16,21 @@ newtype Ident_ = Ident_ String deriving (Eq, Ord, Show, Read)
 data Program_ = Program_ [TopDef_]
   deriving (Eq, Ord, Show, Read)
 
-data TopDef_ = FnDef_ Type_ Ident_ [Arg_] Block_
+data TopDef_
+    = FnDef_ Type_ Ident_ [Arg_] Block_
+    | ClDef_ Ident_ ClBlock_
+    | ClInher_ Ident_ Ident_ ClBlock_
   deriving (Eq, Ord, Show, Read)
 
 data Arg_ = Arg_ Type_ Ident_
+  deriving (Eq, Ord, Show, Read)
+
+data ClBlock_ = ClBlock_ [ClMember_]
+  deriving (Eq, Ord, Show, Read)
+
+data ClMember_
+    = ClAttr_ Type_ Ident_
+    | ClFun_ Type_ Ident_ [Arg_] Block_
   deriving (Eq, Ord, Show, Read)
 
 data Block_ = Block_ [Stmt_]
@@ -30,6 +41,7 @@ data Stmt_
     | BStmt_ Block_
     | Decl_ Type_ [Item_]
     | Ass_ Ident_ Expr_
+    | AttrAss_ Ident_ Ident_ Expr_
     | Incr_ Ident_
     | Decr_ Ident_
     | Ret_ Expr_
@@ -53,6 +65,12 @@ data Expr_
     | ELitFalse_
     | EApp_ Ident_ [Expr_]
     | EString_ String
+    | ENull_ Ident_
+    | ENew_ Ident_
+    | EASelf_ Ident_
+    | EMSelf_ Ident_ [Expr_]
+    | EAttr_ Ident_ Ident_
+    | EMethod_ Ident_ Ident_ [Expr_]
     | Neg_ Expr_
     | Not_ Expr_
     | EMul_ Expr_ MulOp_ Expr_

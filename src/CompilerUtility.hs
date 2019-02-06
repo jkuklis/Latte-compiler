@@ -10,6 +10,14 @@ import qualified Data.List as L
 import AbstractTree
 
 
+type AttrMap = M.Map Ident_ Integer
+
+type MethodMap = M.Map Ident_ Integer
+
+type ClassProto = (AttrMap, MethodMap)
+
+type ClassMap = M.Map Ident_ ClassProto
+
 type VarMap = M.Map String String
 
 data CompilerState = CompilerState {
@@ -19,6 +27,7 @@ data CompilerState = CompilerState {
     funCode :: [String],
     locVars :: VarMap,
     outVars :: VarMap,
+    classes :: ClassMap,
     stackEnd :: Integer,
     maxStack :: Integer,
     labelsCount :: Integer,
@@ -39,6 +48,7 @@ startState = CompilerState {
     funCode = [],
     locVars = M.empty,
     outVars = M.empty,
+    classes = M.empty,
     stackEnd = 0,
     maxStack = 0,
     labelsCount = 0,
@@ -355,6 +365,22 @@ emitDouble instr arg1 arg2 =
     in addLines [line]
 
 
+transferValues :: String -> String -> CS ()
+
+transferValues res var =
+    if res == var
+        then return ()
+        else case (res, var) of
+            ('%':_, _) ->
+                emitDouble "movl" res var
+            ('$':_, _) ->
+                emitDouble "movl" res var
+            (_, _) -> do
+                let tmp = "%eax"
+                emitDouble "movl" res tmp
+                emitDouble "movl" tmp var
+
+
 checkMultiple :: String -> String -> CS Bool
 
 checkMultiple ident pos = do
@@ -409,3 +435,9 @@ isConstant pos = case pos of
 isMemory :: String -> Bool
 
 isMemory pos = not $ (isRegister pos) || (isConstant pos)
+
+
+mergeIdents :: Ident_ -> Ident_ -> CS Ident_
+
+mergeIdents (Ident_ ident1) (Ident_ ident2) =
+    return $ Ident_ $ "_" ++ ident1 ++ "_" ++ ident2

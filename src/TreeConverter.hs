@@ -10,6 +10,7 @@ import ParLatte
 import ErrM
 
 import AbstractTree
+import ClassMapConverter
 
 
 data ConverterState = ConverterState {
@@ -28,11 +29,12 @@ startState hints = ConverterState {
 }
 
 
-convert :: String -> TypeHints -> IO Program_
+convert :: String -> TypeHints -> ConvClassMap -> IO Program_
 
-convert input hints = do
-    let (Ok prog) = pProgram $ myLexer input
-    let prog_ = evalState (progConv prog) $ startState hints
+convert input hints classMap = do
+    let
+        (Ok prog) = pProgram $ myLexer input
+        prog_ = evalState (progConv prog) $ startState hints
     return prog_
 
 
@@ -64,6 +66,19 @@ defConv (FnDef _ type_ ident args block) = do
     return $ FnDef_ type_ ident args block
 
 
+defConv (ClDef _ ident classBlock) = do
+    ident <- identConv ident
+    block <- classBlockConv classBlock
+    return $ ClDef_ ident block
+
+
+defConv (ClInher _ ident extended classBlock) = do
+    ident <- identConv ident
+    extended <- identConv extended
+    classBlock <- classBlockConv classBlock
+    return $ ClInher_ ident extended classBlock
+
+
 typesConv :: [Type Pos] -> CS [Type_]
 
 typesConv types = mapM typeConv types
@@ -77,6 +92,9 @@ typeConv type_ =
         Str _ -> return Str_
         Bool _ -> return Bool_
         Void _ -> return Void_
+        Class _ ident -> do
+            ident <- identConv ident
+            return $ Class_ ident
         -- Fun _ type_ types -> do
         --     type_ <- typeConv type_
         --     types <- typesConv types
@@ -101,6 +119,33 @@ blockConv :: Block Pos -> CS Block_
 blockConv (Block _ stmts) = do
     stmts <- stmtsConv stmts
     return $ Block_ stmts
+
+
+classBlockConv :: ClassBlock Pos -> CS ClBlock_
+
+classBlockConv (ClBlock _ members) = do
+    members <- membersConv members
+    return $ ClBlock_ members
+
+
+membersConv :: [ClMember Pos] -> CS [ClMember_]
+
+membersConv members = mapM memberConv members
+
+
+memberConv :: ClMember Pos -> CS ClMember_
+
+memberConv (ClAttr _ type_ ident) = do
+    type_ <- typeConv type_
+    ident <- identConv ident
+    return $ ClAttr_ type_ ident
+
+memberConv (ClFun _ type_ ident args block) = do
+    type_ <- typeConv type_
+    ident <- identConv ident
+    args <- argsConv args
+    block <- blockConv block
+    return $ ClFun_ type_ ident args block
 
 
 stmtsConv :: [Stmt Pos] -> CS [Stmt_]
@@ -223,6 +268,13 @@ stmtConv stmt =
             apps <- getApps
             return $ concat [apps, [Ass_ ident expr]]
 
+        AttrAss _ object attr expr -> do
+            object <- identConv object
+            attr <- identConv attr
+            expr <- exprConv expr
+            apps <- getApps
+            return $ concat [apps, [AttrAss_ object attr expr]]
+
         Incr _ ident -> do
             ident <- identConv ident
             return [Incr_ ident]
@@ -337,6 +389,34 @@ exprConv expr =
 
         EString _ str ->
             return $ EString_ str
+
+        ENull _ ident -> do
+            ident <- identConv ident
+            return $ ENull_ ident
+
+        ENew _ ident -> do
+            ident <- identConv ident
+            return $ ENew_ ident
+
+        EASelf _ ident -> do
+            ident <- identConv ident
+            return $ EASelf_ ident
+
+        EMSelf _ ident exprs -> do
+            ident <- identConv ident
+            exprs <- exprsConv exprs
+            return $ EMSelf_ ident exprs
+
+        EAttr _ object attr -> do
+            object <- identConv object
+            attr <- identConv attr
+            return $ EAttr_ object attr
+
+        EMethod _ object method exprs -> do
+            object <- identConv object
+            method <- identConv method
+            exprs <- exprsConv exprs
+            return $ EMethod_ object method exprs
 
         Neg _ expr -> do
             expr <- exprConv expr
