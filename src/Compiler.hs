@@ -101,6 +101,9 @@ addStmt stmt = do
         AttrAss_ class_ object attr expr ->
             addAttrAss class_ object attr expr
 
+        SelfAtAss_ attr expr ->
+            addSelfAtAss attr expr
+
         Incr_ ident ->
             incr ident 1
 
@@ -272,9 +275,7 @@ addExpr expr =
             restoreEspLen 1
             emitDouble "movl" label "(%eax)"
             return "%eax"
-        EASelf_ attr -> do
-            class_ <- gets curClass
-            getAttribute class_ "8(%ebp)" attr "%eax"
+        EASelf_ (Ident_ attr) -> getVar attr
         EMSelf_ method exprs -> do
             class_ <- gets curClass
             let obj = "8(%ebp)"
@@ -482,6 +483,15 @@ addAttrAss class_ (Ident_ object) attr expr = do
     res <- addExpr expr
     obj <- getVar object
     att <- getAttribute class_ obj attr res
+    transferValues res att
+
+
+addSelfAtAss :: Ident_ -> Expr_ -> CS ()
+
+addSelfAtAss attr expr = do
+    res <- addExpr expr
+    class_ <- gets curClass
+    att <- getAttribute class_ "8(%ebp)" attr res
     transferValues res att
 
 

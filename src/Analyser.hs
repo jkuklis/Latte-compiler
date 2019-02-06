@@ -304,6 +304,23 @@ checkStmt st = case st of
 
         return False
 
+    SelfAtAss pos attr expr -> do
+        eType <- checkExpr expr
+
+        class_ <- gets curClass
+        case class_ of
+            Nothing -> msgSelfAttr pos attr
+            _ -> do
+                aType <- getClassAttrType pos class_ attr
+                case aType of
+                    Nothing -> return ()
+                    Just aType -> do
+                        checkTypes eType aType $
+                            msgAttrType pos (Ident "self") attr aType
+
+
+        return False
+
     Incr pos ident -> do
         var <- findVar pos ident
         case var of

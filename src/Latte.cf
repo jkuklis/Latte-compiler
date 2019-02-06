@@ -48,11 +48,15 @@ Ass.       Stmt ::= Ident "=" Expr  ";" ;
 
 AttrAss.   Stmt ::= Ident "." Ident "=" Expr ";" ;
 
-SelfAAss.  Stmt ::= "self" "." Ident "=" Expr ";" ;
+SelfAtAss. Stmt ::= "self" "." Ident "=" Expr ";" ;
 
 Incr.      Stmt ::= Ident "++" ";" ;
 
+-- SelfIncr.  Stmt ::= "self" "." Ident "++" ";" ;
+
 Decr.      Stmt ::= Ident "--" ";" ;
+
+-- SelfDecr.  Stmt ::= "self" "." Ident "--" ";" ;
 
 Ret.       Stmt ::= "return" Expr ";" ;
 

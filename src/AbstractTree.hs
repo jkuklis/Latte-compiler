@@ -45,6 +45,7 @@ data Stmt_
     | Decl_ Type_ [Item_]
     | Ass_ Ident_ Expr_
     | AttrAss_ Ident_ Ident_ Ident_ Expr_
+    | SelfAtAss_ Ident_ Expr_ 
     | Incr_ Ident_
     | Decr_ Ident_
     | Ret_ Expr_

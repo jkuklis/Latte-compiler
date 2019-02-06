@@ -243,8 +243,8 @@ extractApps expr =
         EMSelf_ _ _ -> [SExp_ expr]
         EAttr_ _ _ _ -> []
         EMethod_ _ _ _ _ -> [SExp_ expr]
-        EAHiddenSelf_ _ _ _ -> []
-        EMHiddenSelf_ _ _ _ _ -> [SExp_ expr]
+        -- EAHiddenSelf_ _ _ _ -> []
+        -- EMHiddenSelf_ _ _ _ _ -> [SExp_ expr]
         Neg_ expr -> extractApps expr
         Not_ expr -> extractApps expr
         EMul_ e1 op e2 -> doubleExtractApps e1 e2
@@ -284,6 +284,12 @@ stmtConv stmt =
             apps <- getApps
             Class_ classIdent <- findHint pos
             return $ concat [apps, [AttrAss_ classIdent object attr expr]]
+
+        SelfAtAss pos attr expr -> do
+            attr <- identConv attr
+            expr <- exprConv expr
+            apps <- getApps
+            return $ concat [apps, [SelfAtAss_ attr expr]]
 
         Incr _ ident -> do
             ident <- identConv ident
@@ -380,10 +386,7 @@ exprConv expr =
     case expr of
         EVar pos ident -> do
             ident <- identConv ident
-            self <- checkSelf pos
-            if self
-                then return $ EASelf_ ident
-                else return $ EVar_ ident
+            return $ EVar_ ident
 
         ELitInt _ int ->
             return $ ELitInt_ int
@@ -397,10 +400,7 @@ exprConv expr =
         EApp pos ident exprs -> do
             ident <- identConv ident
             exprs <- exprsConv exprs
-            self <- checkSelf pos
-            if self
-                then return $ EMSelf_ ident exprs
-                else return $ EApp_ ident exprs
+            return $ EApp_ ident exprs
 
         EString _ str ->
             return $ EString_ str
@@ -426,20 +426,14 @@ exprConv expr =
             object <- identConv object
             attr <- identConv attr
             Class_ classIdent <- findHint pos
-            self <- checkSelf pos
-            if self
-                then return $ EAHiddenSelf_ classIdent object attr
-                else return $ EAttr_ classIdent object attr
+            return $ EAttr_ classIdent object attr
 
         EMethod pos object method exprs -> do
             object <- identConv object
             method <- identConv method
             exprs <- exprsConv exprs
             Class_ classIdent <- findHint pos
-            self <- checkSelf pos
-            if self
-                then return $ EMHiddenSelf_ classIdent object method exprs
-                else return $ EMethod_ classIdent object method exprs
+            return $ EMethod_ classIdent object method exprs
 
         Neg _ expr -> do
             expr <- exprConv expr
@@ -634,12 +628,16 @@ exprConv expr =
 gatherApps :: Expr_ -> CS ()
 
 gatherApps expr =
-    let doubleGatherApps e1 e2 = do
-        gatherApps e1
-        gatherApps e2
+    let
+        doubleGatherApps e1 e2 = do
+            gatherApps e1
+            gatherApps e2
+
     in case expr of
-    EApp_ _ _ ->
-        modify $ \s -> s { apps = (SExp_ expr) : (apps s) }
+    EApp_ _ _ -> appsModify expr
+    EMSelf_ _ _ -> appsModify expr
+    EMethod_ _ _ _ _ -> appsModify expr
+    -- EMHiddenSelf_ _ _ _ _ -> appsModify expr
     Neg_ expr -> gatherApps expr
     Not_ expr -> gatherApps expr
     EMul_ e1 _ e2 -> doubleGatherApps e1 e2
@@ -648,6 +646,12 @@ gatherApps expr =
     EAnd_ e1 e2 -> doubleGatherApps e1 e2
     EOr_ e1 e2 -> doubleGatherApps e1 e2
     _ -> return ()
+
+
+appsModify :: Expr_ -> CS ()
+
+appsModify expr =
+    modify $ \s -> s { apps = (SExp_ expr) : (apps s) }
 
 
 mulOpConv :: MulOp Pos -> CS MulOp_
