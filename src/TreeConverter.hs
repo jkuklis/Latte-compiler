@@ -243,6 +243,8 @@ extractApps expr =
         EMSelf_ _ _ -> [SExp_ expr]
         EAttr_ _ _ _ -> []
         EMethod_ _ _ _ _ -> [SExp_ expr]
+        EAHiddenSelf_ _ _ _ -> []
+        EMHiddenSelf_ _ _ _ _ -> [SExp_ expr]
         Neg_ expr -> extractApps expr
         Not_ expr -> extractApps expr
         EMul_ e1 op e2 -> doubleExtractApps e1 e2
@@ -392,11 +394,13 @@ exprConv expr =
         ELitFalse _ ->
             return $ ELitFalse_
 
-        EApp _ ident exprs -> do
+        EApp pos ident exprs -> do
             ident <- identConv ident
             exprs <- exprsConv exprs
-            return $ EApp_ ident exprs
-
+            self <- checkSelf pos
+            if self
+                then return $ EMSelf_ ident exprs
+                else return $ EApp_ ident exprs
 
         EString _ str ->
             return $ EString_ str
@@ -422,15 +426,20 @@ exprConv expr =
             object <- identConv object
             attr <- identConv attr
             Class_ classIdent <- findHint pos
-
-            return $ EAttr_ classIdent object attr
+            self <- checkSelf pos
+            if self
+                then return $ EAHiddenSelf_ classIdent object attr
+                else return $ EAttr_ classIdent object attr
 
         EMethod pos object method exprs -> do
             object <- identConv object
             method <- identConv method
             exprs <- exprsConv exprs
             Class_ classIdent <- findHint pos
-            return $ EMethod_ classIdent object method exprs
+            self <- checkSelf pos
+            if self
+                then return $ EMHiddenSelf_ classIdent object method exprs
+                else return $ EMethod_ classIdent object method exprs
 
         Neg _ expr -> do
             expr <- exprConv expr

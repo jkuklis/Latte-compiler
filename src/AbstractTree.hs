@@ -74,6 +74,8 @@ data Expr_
     | EMSelf_ Ident_ [Expr_]
     | EAttr_ Ident_ Ident_ Ident_
     | EMethod_ Ident_ Ident_ Ident_ [Expr_]
+    | EAHiddenSelf_ Ident_ Ident_ Ident_
+    | EMHiddenSelf_ Ident_ Ident_ Ident_ [Expr_]
     | Neg_ Expr_
     | Not_ Expr_
     | EMul_ Expr_ MulOp_ Expr_

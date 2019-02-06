@@ -30,6 +30,7 @@ data CompilerState = CompilerState {
     outVars :: VarMap,
     classes :: ClassMap,
     classTables :: ConvClassMap,
+    curClass :: Ident_,
     stackEnd :: Integer,
     maxStack :: Integer,
     labelsCount :: Integer,
@@ -55,6 +56,7 @@ startState classMap = CompilerState {
     outVars = M.empty,
     classes = M.empty,
     classTables = classMap,
+    curClass = Ident_ "",
     stackEnd = 0,
     maxStack = 0,
     labelsCount = 0,
@@ -90,6 +92,12 @@ virtualMethod (class_, method) table =
     in line : table
 
 
+setCurClass :: Ident_ -> CS ()
+
+setCurClass ident =
+    modify $ \s -> s { curClass = ident }
+
+
 mergeIdentsReg :: Ident_ -> Ident_ -> String
 
 mergeIdentsReg (Ident_ ident1) (Ident_ ident2) =
@@ -100,6 +108,13 @@ mergeIdents :: Ident_ -> Ident_ -> CS Ident_
 
 mergeIdents ident1 ident2 =
     return $ Ident_ $ mergeIdentsReg ident1 ident2
+
+
+appendSelf :: Ident_ -> [Arg_] -> CS [Arg_]
+
+appendSelf ident args =
+    let self = Arg_ (Class_ ident) (Ident_ "self")
+    in return $ self : args
 
 
 addFun :: Ident_ -> CS ()

@@ -41,11 +41,11 @@ compDef (FnDef_ type_ ident args block) = do
     saveFunCode
 
 compDef (ClDef_ ident block) = do
-    addClass ident
+    setCurClass ident
     addClassBlock ident block
 
 compDef (ClInher_ ident extended classBlock) = do
-    addInhClass ident extended
+    setCurClass ident
     addClassBlock ident classBlock
 
 
@@ -57,16 +57,6 @@ addBlock (Block_ stmts) = addStmts stmts
 addClassBlock :: Ident_ -> ClBlock_ -> CS ()
 
 addClassBlock ident (ClBlock_ members) = addMembers ident members
-
-
-addClass :: Ident_ -> CS ()
-
-addClass ident = return () -- TODO
-
-
-addInhClass :: Ident_ -> Ident_ -> CS ()
-
-addInhClass ident extended = return () -- TODO
 
 
 addMembers :: Ident_ -> [ClMember_] -> CS ()
@@ -82,6 +72,7 @@ addMember ident (ClAttr_ type_ attrIdent) =
 
 addMember ident (ClFun_ type_ funIdent args block) = do
     newIdent <- mergeIdents ident funIdent
+    args <- appendSelf ident args
     compDef $ FnDef_ type_ newIdent args block
 
 
@@ -271,6 +262,9 @@ addExpr expr =
             restoreEspLen 1
             emitDouble "movl" label "(%eax)"
             return "%eax"
+        EASelf_ attr -> do
+            class_ <- gets curClass
+            getAttribute class_ "8(%ebp)" attr "%eax"
         EAttr_ class_ (Ident_ object) attr -> do
             obj <- getVar object
             getAttribute class_ obj attr "%eax"
@@ -278,8 +272,9 @@ addExpr expr =
             pushArgs $ reverse exprs
             obj <- getVar object
             met <- getMethod class_ obj method
-            -- emitSingle "pushl" obj -- TODO
+            emitSingle "pushl" obj
             emitSingle "call" met
+            restoreEspLen 1
             restoreEsp exprs
             return "%eax"
         Neg_ expr -> do
