@@ -73,16 +73,16 @@ compileVirtualTables classMap =
 
 compileVirtualTable :: Ident_ -> ClassTable -> [String] -> [String]
 
-compileVirtualTable ident (_, mMap) tables =
-    let table = virtualMethods ident mMap
-    in concat [table, tables]
+compileVirtualTable (Ident_ ident) (_, mMap) tables =
+    let table = virtualMethods mMap
+        label = "__" ++ ident ++ ":"
+    in concat [[label], table, tables]
 
 
-virtualMethods :: Ident_ -> [(Ident_, Ident_)] -> [String]
+virtualMethods ::[(Ident_, Ident_)] -> [String]
 
-virtualMethods (Ident_ ident) methods =
-    let label = "__" ++ ident ++ ":"
-    in foldr virtualMethod [label] methods
+virtualMethods methods =
+    foldr virtualMethod [] methods
 
 
 virtualMethod :: (Ident_, Ident_) -> [String] -> [String]

@@ -18,7 +18,7 @@ compile (Program_ defs) classMap = do
     let state = execState (compDefs defs) (startState classMap)
         virtualTables = compileVirtualTables classMap
     putStrLn $ unlines $ reverse $ heap state
-    putStrLn $ unlines $ reverse $ virtualTables
+    putStrLn $ unlines $ virtualTables
     putStrLn $ unlines $ reverse $ code state
 
 
