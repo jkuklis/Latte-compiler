@@ -566,7 +566,11 @@ checkExpr expr = case expr of
 
     EApp pos ident exprs -> do
         fun <- gets $ M.lookup ident . funMap
-        checkApp fun ident pos exprs
+        case fun of
+            Just _ -> checkApp fun ident pos exprs
+            Nothing -> do
+                placeSelfHint pos
+                checkExpr $ EMSelf pos ident exprs
 
     EString pos str ->
         return $ Just $ Str pos

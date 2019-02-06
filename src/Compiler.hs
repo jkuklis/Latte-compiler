@@ -237,6 +237,16 @@ addExpr expr =
                             cont res1Back res2
                         else
                             cont res1 res2
+
+        methodCont class_ obj method exprs = do
+            pushArgs $ reverse exprs
+            met <- getMethod class_ obj method
+            emitSingle "pushl" obj
+            emitSingle "call" met
+            restoreEspLen 1
+            restoreEsp exprs
+            return "%eax"
+
     in case expr of
         EVar_ (Ident_ eIdent) -> getVar eIdent
         ELitInt_ int -> return $ "$" ++ (show int)
@@ -265,18 +275,16 @@ addExpr expr =
         EASelf_ attr -> do
             class_ <- gets curClass
             getAttribute class_ "8(%ebp)" attr "%eax"
+        EMSelf_ method exprs -> do
+            class_ <- gets curClass
+            let obj = "8(%ebp)"
+            methodCont class_ obj method exprs
         EAttr_ class_ (Ident_ object) attr -> do
             obj <- getVar object
             getAttribute class_ obj attr "%eax"
         EMethod_ class_ (Ident_ object) method exprs -> do
-            pushArgs $ reverse exprs
             obj <- getVar object
-            met <- getMethod class_ obj method
-            emitSingle "pushl" obj
-            emitSingle "call" met
-            restoreEspLen 1
-            restoreEsp exprs
-            return "%eax"
+            methodCont class_ obj method exprs
         Neg_ expr -> do
             res <- addExpr expr
             emitNeg res
