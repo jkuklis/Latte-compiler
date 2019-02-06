@@ -1,8 +1,11 @@
 module AnalyserUtility where
 
 import System.IO
+
 import Control.Monad.State
+
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 import AbsLatte
 import AbstractTree
@@ -36,7 +39,8 @@ data AnalysisState = AnalysisState {
     locVarMap :: VarMap,
     retType :: Type Pos,
     curFun :: Ident,
-    typeHints :: TypeHints
+    typeHints :: TypeHints,
+    selfHints :: SelfHints
     } deriving Show
 
 type AS a = State AnalysisState a
@@ -64,13 +68,14 @@ startState = AnalysisState {
     locVarMap = M.empty,
     retType = defaultType,
     curFun = Ident "",
-    typeHints = M.empty
+    typeHints = M.empty,
+    selfHints = S.empty
 }
 
 
-findVar :: Ident -> AS (Maybe VarProto)
+findVar :: Pos -> Ident -> AS (Maybe VarProto)
 
-findVar ident = do
+findVar pos ident = do
     loc <- gets $ M.lookup ident . locVarMap
     out <- gets $ M.lookup ident . outVarMap
 
@@ -78,18 +83,20 @@ findVar ident = do
         Just _ -> return loc
         Nothing -> case out of
             Just _ -> return out
-            Nothing -> findAttr ident
+            Nothing -> findAttr pos ident
 
 
-findAttr :: Ident -> AS (Maybe VarProto)
+findAttr :: Pos -> Ident -> AS (Maybe VarProto)
 
-findAttr ident = do
+findAttr pos ident = do
+    placeSelfHint pos
     class_ <- gets curClass
     case class_ of
         Nothing -> return Nothing
         Just clIdent -> do
             Just (_, _, vMap, _) <- gets $ M.lookup clIdent . classMap
-            return $ M.lookup ident vMap
+            let proto = M.lookup ident vMap
+            return proto
 
 
 findLoc :: Ident -> AS (Maybe VarProto)
@@ -302,6 +309,12 @@ placeHintType (Just pos) type_ =
         Class _ (Ident ident) ->
             placeHint pos $ Class_ $ Ident_ ident
         _ -> return ()
+
+
+placeSelfHint :: Maybe LineChar -> AS ()
+
+placeSelfHint (Just pos) =
+    modify $ \s -> s { selfHints = S.insert pos (selfHints s) }
 
 
 singleQuotes :: Ident -> Bool

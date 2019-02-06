@@ -14,26 +14,28 @@ import AbstractTree
 
 data ConverterState = ConverterState {
     apps :: [Stmt_],
-    typeHints :: TypeHints
+    typeHints :: TypeHints,
+    selfHints :: SelfHints
     } deriving Show
 
 type CS a = State ConverterState a
 
 
-startState :: TypeHints -> ConverterState
+startState :: TypeHints -> SelfHints -> ConverterState
 
-startState hints = ConverterState {
+startState givenTypeHints givenSelfHints = ConverterState {
     apps = [],
-    typeHints = hints
+    typeHints = givenTypeHints,
+    selfHints = givenSelfHints
 }
 
 
-convert :: String -> TypeHints -> IO Program_
+convert :: String -> TypeHints -> SelfHints -> IO Program_
 
-convert input hints = do
+convert input typeHints selfHints = do
     let
         (Ok prog) = pProgram $ myLexer input
-        prog_ = evalState (progConv prog) $ startState hints
+        prog_ = evalState (progConv prog) $ startState typeHints selfHints
     return prog_
 
 
@@ -374,9 +376,12 @@ exprConv :: Expr Pos -> CS Expr_
 
 exprConv expr =
     case expr of
-        EVar _ ident -> do
+        EVar pos ident -> do
             ident <- identConv ident
-            return $ EVar_ ident
+            self <- checkSelf pos
+            if self
+                then return $ EASelf_ ident
+                else return $ EVar_ ident
 
         ELitInt _ int ->
             return $ ELitInt_ int
@@ -674,3 +679,9 @@ findHint :: Maybe LineChar -> CS Type_
 findHint (Just pos) = do
     Just type_ <- gets $ M.lookup pos . typeHints
     return type_
+
+
+checkSelf :: Maybe LineChar -> CS Bool
+
+checkSelf (Just pos) =
+    gets $ S.member pos . selfHints

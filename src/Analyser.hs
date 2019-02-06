@@ -3,6 +3,7 @@ module Analyser where
 import Control.Monad.State
 
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 import AbsLatte
 import ParLatte
@@ -13,7 +14,7 @@ import AnalyserErrors
 import AbstractTree
 
 
-analyse :: String -> IO (Bool, TypeHints, ClassMap)
+analyse :: String -> IO (Bool, TypeHints, SelfHints, ClassMap)
 
 analyse input =
     let tokens = myLexer input in
@@ -22,7 +23,7 @@ analyse input =
                 putErrLn "ERROR\n"
                 putErrLn "Failure to parse program!"
                 putErrLn $ error ++ "\n"
-                return (False, M.empty, M.empty)
+                return (False, M.empty, S.empty, M.empty)
 
             Ok (Program _ defs) -> do
                 -- putErrLn $ show defs
@@ -37,7 +38,7 @@ analyse input =
                     else do
                         putErrLn "ERROR\n"
                         putErr $ unlines $ reverse $ errors state
-                return (continue state, typeHints state, classMap state)
+                return (continue state, typeHints state, selfHints state, classMap state)
 
 
 getPrototypes :: [TopDef Pos] -> AS ()
@@ -284,7 +285,7 @@ checkStmt st = case st of
 
     Ass pos ident expr -> do
         eType <- checkExpr expr
-        var <- findVar ident
+        var <- findVar pos ident
         case var of
             Just (prevPos, vType) -> do
                 checkTypes eType vType $ msgAssign ident pos vType prevPos
@@ -304,7 +305,7 @@ checkStmt st = case st of
         return False
 
     Incr pos ident -> do
-        var <- findVar ident
+        var <- findVar pos ident
         case var of
             Just (tPos, type_) ->
                 case type_ of
@@ -383,10 +384,10 @@ checkTypes eType dType action = case eType of
         when (not (cmpTypes dType eType classes)) $ action eType
 
 
-getClassSilent :: Ident -> AS (Maybe (Type Pos))
+getClassSilent :: Pos -> Ident -> AS (Maybe (Type Pos))
 
-getClassSilent object = do
-    var <- findVar object
+getClassSilent pos object = do
+    var <- findVar pos object
     case var of
         Just (_, vType) ->
             case vType of
@@ -398,7 +399,7 @@ getClassSilent object = do
 getClass :: Pos -> Ident -> AS (Maybe Ident)
 
 getClass pos object = do
-    var <- findVar object
+    var <- findVar pos object
     case var of
         Just (prevPos, vType) ->
             case vType of
@@ -451,7 +452,7 @@ getObjectAttrType :: Pos -> Ident -> Ident -> AS (Maybe (Type Pos))
 
 getObjectAttrType pos object attr = do
     class_ <- getClass pos object
-    classType <- getClassSilent object
+    classType <- getClassSilent pos object
     case classType of
         Nothing -> return ()
         Just classType ->
@@ -493,7 +494,7 @@ getObjectMethod :: Pos -> Ident -> Ident -> AS (Maybe FunProto)
 
 getObjectMethod pos object method = do
     class_ <- getClass pos object
-    classType <- getClassSilent object
+    classType <- getClassSilent pos object
     case classType of
         Nothing -> return ()
         Just classType ->
@@ -541,7 +542,7 @@ checkExpr :: Expr Pos -> AS (Maybe (Type Pos))
 
 checkExpr expr = case expr of
     EVar pos ident -> do
-        var <- findVar ident
+        var <- findVar pos ident
         case var of
             Just (vPos, vType) ->
                 return $ Just vType

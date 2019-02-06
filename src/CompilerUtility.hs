@@ -106,7 +106,9 @@ addFun :: Ident_ -> CS ()
 
 addFun (Ident_ ident) = do
     let
-        globl = "\n.globl " ++ ident
+        globl = case ident of
+            '_':_ -> ""
+            _ -> "\n.globl " ++ ident
         fun = ident ++ ":"
         pushStack = "\tpushl\t" ++ stack
         saveFrame = "\tmovl\t" ++ frame ++ ", " ++ stack

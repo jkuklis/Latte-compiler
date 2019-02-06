@@ -1,6 +1,7 @@
 module AbstractTree where
 
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 import AbsLatte
 
@@ -10,6 +11,8 @@ type LineChar = (Int, Int)
 type Pos = Maybe LineChar
 
 type TypeHints = M.Map LineChar Type_
+
+type SelfHints = S.Set LineChar
 
 
 newtype Ident_ = Ident_ String deriving (Eq, Ord, Show, Read)
