@@ -47,7 +47,7 @@ frame = "%esp"
 startState :: ConvClassMap -> CompilerState
 
 startState classMap = CompilerState {
-    code = [".text"],
+    code = [],
     heap = [".section .rodata"],
     funProlog = [],
     funCode = [],
@@ -61,6 +61,33 @@ startState classMap = CompilerState {
     stringsCount = 0,
     helpers = 0
     }
+
+
+compileVirtualTables :: ConvClassMap -> [String]
+
+compileVirtualTables classMap =
+    M.foldrWithKey compileVirtualTable ["", ".text"] classMap
+
+
+compileVirtualTable :: Ident_ -> ClassTable -> [String] -> [String]
+
+compileVirtualTable ident (_, mMap) tables =
+    let table = virtualMethods ident mMap
+    in concat [table, tables]
+
+
+virtualMethods :: Ident_ -> [(Ident_, Ident_)] -> [String]
+
+virtualMethods (Ident_ ident) methods =
+    let label = "__" ++ ident ++ ":"
+    in foldr virtualMethod [label] methods
+
+
+virtualMethod :: (Ident_, Ident_) -> [String] -> [String]
+
+virtualMethod (Ident_ class_, Ident_ method) table =
+    let line = "\t.long\t_" ++ class_ ++ "_" ++ method
+    in line : table
 
 
 addFun :: Ident_ -> CS ()

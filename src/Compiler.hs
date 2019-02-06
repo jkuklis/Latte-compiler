@@ -16,7 +16,9 @@ compile :: Program_ -> ConvClassMap -> IO ()
 compile (Program_ defs) classMap = do
     -- putStrLn $ show $ Program_ defs
     let state = execState (compDefs defs) (startState classMap)
+        virtualTables = compileVirtualTables classMap
     putStrLn $ unlines $ reverse $ heap state
+    putStrLn $ unlines $ reverse $ virtualTables
     putStrLn $ unlines $ reverse $ code state
 
 
@@ -259,13 +261,15 @@ addExpr expr =
             return $ "$" ++ res
         ENull_ ident ->
             return $ "$0"
-        ENew_ ident -> do
+        ENew_ ident@(Ident_ ident_) -> do
             (vMap, _) <- getClassTable ident
             let size = 4 * ((length vMap) + 1)
                 sizeConst = "$" ++ (show size)
+                label = "$__" ++ ident_
             emitSingle "pushl" sizeConst
             emitSingle "call" "malloc"
             restoreEspLen 1
+            emitDouble "movl" label "(%eax)"
             return "%eax"
         EAttr_ class_ (Ident_ object) attr -> do
             obj <- getVar object
