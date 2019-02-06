@@ -3,7 +3,6 @@ module TreeConverter where
 import Control.Monad.State
 
 import qualified Data.Map as M
-import qualified Data.Set as S
 
 import AbsLatte
 import ParLatte
@@ -14,28 +13,26 @@ import AbstractTree
 
 data ConverterState = ConverterState {
     apps :: [Stmt_],
-    typeHints :: TypeHints,
-    selfHints :: SelfHints
-    } deriving Show
+    typeHints :: TypeHints
+} deriving Show
 
 type CS a = State ConverterState a
 
 
-startState :: TypeHints -> SelfHints -> ConverterState
+startState :: TypeHints-> ConverterState
 
-startState givenTypeHints givenSelfHints = ConverterState {
+startState givenTypeHints = ConverterState {
     apps = [],
-    typeHints = givenTypeHints,
-    selfHints = givenSelfHints
+    typeHints = givenTypeHints
 }
 
 
-convert :: String -> TypeHints -> SelfHints -> IO Program_
+convert :: String -> TypeHints -> IO Program_
 
-convert input typeHints selfHints = do
+convert input typeHints = do
     let
         (Ok prog) = pProgram $ myLexer input
-        prog_ = evalState (progConv prog) $ startState typeHints selfHints
+        prog_ = evalState (progConv prog) $ startState typeHints
     return prog_
 
 
@@ -96,10 +93,6 @@ typeConv type_ =
         Class _ ident -> do
             ident <- identConv ident
             return $ Class_ ident
-        -- Fun _ type_ types -> do
-        --     type_ <- typeConv type_
-        --     types <- typesConv types
-        --     return $ Fun_ type_ types
 
 
 argsConv :: [Arg Pos] -> CS [Arg_]
@@ -243,8 +236,6 @@ extractApps expr =
         EMSelf_ _ _ -> [SExp_ expr]
         EAttr_ _ _ _ -> []
         EMethod_ _ _ _ _ -> [SExp_ expr]
-        -- EAHiddenSelf_ _ _ _ -> []
-        -- EMHiddenSelf_ _ _ _ _ -> [SExp_ expr]
         Neg_ expr -> extractApps expr
         Not_ expr -> extractApps expr
         EMul_ e1 op e2 -> doubleExtractApps e1 e2
@@ -298,6 +289,14 @@ stmtConv stmt =
         Decr _ ident -> do
             ident <- identConv ident
             return [Decr_ ident]
+
+        SelfIncr pos ident -> do
+            ident <- identConv ident
+            return [SelfIncr_ ident]
+
+        SelfDecr pos ident -> do
+            ident <- identConv ident
+            return [SelfDecr_ ident]
 
         Ret _ expr -> do
             expr <- exprConv expr
@@ -637,7 +636,6 @@ gatherApps expr =
     EApp_ _ _ -> appsModify expr
     EMSelf_ _ _ -> appsModify expr
     EMethod_ _ _ _ _ -> appsModify expr
-    -- EMHiddenSelf_ _ _ _ _ -> appsModify expr
     Neg_ expr -> gatherApps expr
     Not_ expr -> gatherApps expr
     EMul_ e1 _ e2 -> doubleGatherApps e1 e2
@@ -692,9 +690,3 @@ findHint :: Maybe LineChar -> CS Type_
 findHint (Just pos) = do
     Just type_ <- gets $ M.lookup pos . typeHints
     return type_
-
-
-checkSelf :: Maybe LineChar -> CS Bool
-
-checkSelf (Just pos) =
-    gets $ S.member pos . selfHints

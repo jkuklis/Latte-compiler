@@ -2,6 +2,7 @@ int printf(char*,...);
 int scanf(char*,...);
 void exit(int);
 void *malloc(int);
+void *calloc(int, int);
 int getchar();
 int strlen(const char *s);
 char *strcat(char *s1, const char *s2);

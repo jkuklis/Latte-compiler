@@ -52,11 +52,11 @@ SelfAtAss. Stmt ::= "self" "." Ident "=" Expr ";" ;
 
 Incr.      Stmt ::= Ident "++" ";" ;
 
--- SelfIncr.  Stmt ::= "self" "." Ident "++" ";" ;
+SelfIncr.  Stmt ::= "self" "." Ident "++" ";" ;
 
 Decr.      Stmt ::= Ident "--" ";" ;
 
--- SelfDecr.  Stmt ::= "self" "." Ident "--" ";" ;
+SelfDecr.  Stmt ::= "self" "." Ident "--" ";" ;
 
 Ret.       Stmt ::= "return" Expr ";" ;
 

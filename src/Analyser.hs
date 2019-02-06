@@ -3,7 +3,6 @@ module Analyser where
 import Control.Monad.State
 
 import qualified Data.Map as M
-import qualified Data.Set as S
 
 import AbsLatte
 import ParLatte
@@ -14,7 +13,7 @@ import AnalyserErrors
 import AbstractTree
 
 
-analyse :: String -> IO (Bool, TypeHints, SelfHints, ClassMap)
+analyse :: String -> IO (Bool, TypeHints, ClassMap)
 
 analyse input =
     let tokens = myLexer input in
@@ -23,22 +22,19 @@ analyse input =
                 putErrLn "ERROR\n"
                 putErrLn "Failure to parse program!"
                 putErrLn $ error ++ "\n"
-                return (False, M.empty, S.empty, M.empty)
+                return (False, M.empty, M.empty)
 
             Ok (Program _ defs) -> do
                 -- putErrLn $ show defs
                 let statePrototypes = execState (getPrototypes defs) startState
                 let state = execState (checkDefinitions defs) statePrototypes
-
-                -- let state = statePrototypes
-
                 if continue state
                     then
                         putErrLn "OK\n"
                     else do
                         putErrLn "ERROR\n"
                         putErr $ unlines $ reverse $ errors state
-                return (continue state, typeHints state, selfHints state, classMap state)
+                return (continue state, typeHints state, classMap state)
 
 
 getPrototypes :: [TopDef Pos] -> AS ()
@@ -323,17 +319,15 @@ checkStmt st = case st of
 
     Incr pos ident -> do
         var <- findVar pos ident
-        case var of
-            Just (tPos, type_) ->
-                case type_ of
-                    Int tPos ->
-                        return ()
-                    _ ->
-                        msgIncr ident pos tPos type_
-            Nothing -> msgVarUndeclared ident pos
-        return False
+        checkIncr pos ident var
 
     Decr pos ident -> checkStmt $ Incr pos ident
+
+    SelfIncr pos ident -> do
+        var <- findAttr pos ident
+        checkIncr pos ident var
+
+    SelfDecr pos ident -> checkStmt $ SelfIncr pos ident
 
     Ret pos expr -> do
         eType <- checkExpr expr
@@ -389,6 +383,20 @@ checkStmt st = case st of
     SExp pos expr -> do
         checkExpr expr
         return False
+
+
+checkIncr :: Pos -> Ident -> Maybe VarProto -> AS Bool
+
+checkIncr pos ident var = do
+    case var of
+        Just (tPos, type_) ->
+            case type_ of
+                Int tPos ->
+                    return ()
+                _ ->
+                    msgIncr ident pos tPos type_
+        Nothing -> msgVarUndeclared ident pos
+    return False
 
 
 checkTypes :: Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS ()) -> AS ()
@@ -585,9 +593,7 @@ checkExpr expr = case expr of
         fun <- gets $ M.lookup ident . funMap
         case fun of
             Just _ -> checkApp fun ident pos exprs
-            Nothing -> do
-                placeSelfHint pos
-                checkExpr $ EMSelf pos ident exprs
+            Nothing -> checkExpr $ EMSelf pos ident exprs
 
     EString pos str ->
         return $ Just $ Str pos

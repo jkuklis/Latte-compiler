@@ -44,6 +44,8 @@ type CS a = State CompilerState a
 stack = "%ebp"
 frame = "%esp"
 
+selfObject = "8(%ebp)"
+
 
 startState :: ConvClassMap -> CompilerState
 
@@ -217,10 +219,7 @@ getVar ident = do
                 Just pos -> return pos
                 Nothing -> do
                     class_ <- gets curClass
-                    getAttribute class_ "8(%ebp)" (Ident_ ident) "%eax"
-                -- Nothing -> do
-                --     pos <- addStack ident
-                --     return pos
+                    getAttribute class_ selfObject (Ident_ ident) "%eax"
 
 
 addLocalVar :: String -> String -> CS ()

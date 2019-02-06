@@ -1,21 +1,26 @@
 Kompilator Latte dla 32-bitowej architektury x86.
 
-Dołączyłem do projektu plik z uwagami, które Pan przesłał. Naprawiłem wszystkie
-wymienione błędy poza odpowiednim kodem skaczącym dla wyrażeń boolowskich
-- dalej operują one na zmiennych $0 i $1, a nie skaczą od razu do odpowiednich etykiet.
-
-Na tym etapie działa prawie całe analizowanie poprawności klas
-- bez przypisania postaci 'Shape a = new Rectangle;', z dwoma różnymi typami.
-
-Innych rozszerzeń nie będę robił, klasy chciałbym skończyć do środy 06.02.
-
-Całość działa jak maszyna stosowa, ale z pewnymi optymalizacjami, mającymi
-za zadanie zwiększyć efektywność użycia rejestrów.
+Alokacja rejestrów nie jest robiona optymalnie, ale zastosowałem pewne optymalizacje
+pozwalające w wielu przypadkach nie tworzyć kodu jak dla maszyny stosowej.
+W porównaniu z poprzednią częścią, którą oddałem, teraz kod wygląda schludniej.
 
 Funkcje, które nie pojawiłyby się w kodzie przez wyeliminowanie wyrażeń stałych są dodatkowo wywoływane,
 żeby zachować wszystkie efekty uboczne (wypisania na ekran, pobieranie wartości z wejścia).
 
-Zawsze prawdziwe if'y są redukowane do związanych z nimi instrukcji, zawsze fałszywe są usuwane.
+Zawsze prawdziwe if'y są redukowane do związanych z nimi instrukcji.
+
+Usuwane są instrukcje nieosiągalne - instrukcje po returnach, w zawsze fałszywych gałęziach ifów.
+
+Rozszerzenia: pełne klasy - kompilator działa poprawnie na dostarczonych testach.
+
+Dodatkowo można odwoływać się poprzez 'self' do wartości atrybutów klasy,
+nawet gdy są przysłonięte deklaracjami zmiennych o tych samych nazwach.
+
+Dopuszczalne jest tylko pojedyncze zagnieżdżenie kropek, co jednak wystarcza, żeby
+"dosięgnąć" dowolnie zagnieżdżonego atrybutu.
+
+Wyjaśnienie:
+tmp = a . b . c; niedopuszczalne, ale można zrobić tmp = a . b; tmp2 = b . c;
 
 
 Zbudowanie:

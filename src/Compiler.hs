@@ -110,6 +110,12 @@ addStmt stmt = do
         Decr_ ident ->
             incr ident (-1)
 
+        SelfIncr_ ident ->
+            selfIncr ident 1
+
+        SelfDecr_ ident ->
+            selfIncr ident (-1)
+
         Ret_ expr ->
             exprRet expr
 
@@ -271,14 +277,15 @@ addExpr expr =
                 sizeConst = "$" ++ (show size)
                 label = "$__" ++ ident_
             emitSingle "pushl" sizeConst
-            emitSingle "call" "malloc"
-            restoreEspLen 1
+            emitSingle "pushl" "$1"
+            emitSingle "call" "calloc"
+            restoreEspLen 2
             emitDouble "movl" label "(%eax)"
             return "%eax"
         EASelf_ (Ident_ attr) -> getVar attr
         EMSelf_ method exprs -> do
             class_ <- gets curClass
-            let obj = "8(%ebp)"
+            let obj = selfObject
             methodCont class_ obj method exprs
         EAttr_ class_ (Ident_ object) attr -> do
             obj <- getVar object
@@ -491,7 +498,7 @@ addSelfAtAss :: Ident_ -> Expr_ -> CS ()
 addSelfAtAss attr expr = do
     res <- addExpr expr
     class_ <- gets curClass
-    att <- getAttribute class_ "8(%ebp)" attr res
+    att <- getAttribute class_ selfObject attr res
     transferValues res att
 
 
@@ -508,6 +515,17 @@ incr (Ident_ ident) int = do
             pos <- addStack ident
             emitSingle instr pos
         else emitSingle instr var
+
+
+selfIncr :: Ident_ -> Integer -> CS ()
+
+selfIncr (Ident_ ident) int = do
+    class_ <- gets curClass
+    attr <- getAttribute class_ selfObject (Ident_ ident) "%eax"
+    let instr = if int == 1
+        then "incl"
+        else "decl"
+    emitSingle instr attr
 
 
 voidRet :: CS ()

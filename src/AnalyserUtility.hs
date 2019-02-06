@@ -5,7 +5,6 @@ import System.IO
 import Control.Monad.State
 
 import qualified Data.Map as M
-import qualified Data.Set as S
 
 import AbsLatte
 import AbstractTree
@@ -39,9 +38,8 @@ data AnalysisState = AnalysisState {
     locVarMap :: VarMap,
     retType :: Type Pos,
     curFun :: Ident,
-    typeHints :: TypeHints,
-    selfHints :: SelfHints
-    } deriving Show
+    typeHints :: TypeHints
+} deriving Show
 
 type AS a = State AnalysisState a
 
@@ -68,8 +66,7 @@ startState = AnalysisState {
     locVarMap = M.empty,
     retType = defaultType,
     curFun = Ident "",
-    typeHints = M.empty,
-    selfHints = S.empty
+    typeHints = M.empty
 }
 
 
@@ -89,7 +86,6 @@ findVar pos ident = do
 findAttr :: Pos -> Ident -> AS (Maybe VarProto)
 
 findAttr pos ident = do
-    placeSelfHint pos
     class_ <- gets curClass
     case class_ of
         Nothing -> return Nothing
@@ -224,12 +220,6 @@ cmpTypes (Bool pos1) (Bool pos2) _ = True
 cmpTypes (Void pos1) (Void pos2) _ = True
 cmpTypes (Class pos1 ident1) (Class pos2 ident2) classes =
     subClass ident1 ident2 classes
--- cmpTypes (Class pos1 ident1) (InhClass pos2 ident2 extended2) classes =
---     subClass ident1 extended classes
--- cmpTypes (InhClass pos1 ident1 extended1) (Class pos2 ident2) classes =
---     subClass ident1 ident2 classes
--- cmpTypes (InhClass pos1 ident1 extended1) (InhClass pos2 ident2 extended2) classes =
---     subClass ident1 extended2 classes
 cmpTypes _ _ _ = False
 
 
@@ -309,12 +299,6 @@ placeHintType (Just pos) type_ =
         Class _ (Ident ident) ->
             placeHint pos $ Class_ $ Ident_ ident
         _ -> return ()
-
-
-placeSelfHint :: Maybe LineChar -> AS ()
-
-placeSelfHint (Just pos) =
-    modify $ \s -> s { selfHints = S.insert pos (selfHints s) }
 
 
 singleQuotes :: Ident -> Bool

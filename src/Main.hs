@@ -11,16 +11,15 @@ import Compiler (compile)
 
 main = do
     input <- getContents
-    (continue, typeHints, selfHints, classMap) <- analyse input
+    (continue, typeHints, classMap) <- analyse input
     let convertedClassMap = convertClassMap classMap
     if not continue
         then exitFailure
         else do
             -- hPutStrLn stderr $ show convertedClassMap
             -- hPutStrLn stderr $ show typeHints
-            -- hPutStrLn stderr $ show selfHints
-
-            prog <- convert input typeHints selfHints
+            
+            prog <- convert input typeHints
             -- hPutStrLn stderr $ show prog
 
             compile prog convertedClassMap

@@ -45,9 +45,11 @@ data Stmt_
     | Decl_ Type_ [Item_]
     | Ass_ Ident_ Expr_
     | AttrAss_ Ident_ Ident_ Ident_ Expr_
-    | SelfAtAss_ Ident_ Expr_ 
+    | SelfAtAss_ Ident_ Expr_
     | Incr_ Ident_
     | Decr_ Ident_
+    | SelfIncr_ Ident_
+    | SelfDecr_ Ident_
     | Ret_ Expr_
     | VRet_
     | Cond_ Expr_ Stmt_
@@ -75,8 +77,6 @@ data Expr_
     | EMSelf_ Ident_ [Expr_]
     | EAttr_ Ident_ Ident_ Ident_
     | EMethod_ Ident_ Ident_ Ident_ [Expr_]
-    | EAHiddenSelf_ Ident_ Ident_ Ident_
-    | EMHiddenSelf_ Ident_ Ident_ Ident_ [Expr_]
     | Neg_ Expr_
     | Not_ Expr_
     | EMul_ Expr_ MulOp_ Expr_
