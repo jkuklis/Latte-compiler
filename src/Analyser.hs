@@ -298,7 +298,7 @@ checkStmt st = case st of
 
         case aType of
             Nothing -> return ()
-            Just aType ->
+            Just aType -> do
                 checkTypes eType aType $ msgAttrType pos object attr aType
 
         return False
@@ -383,6 +383,18 @@ checkTypes eType dType action = case eType of
         when (not (cmpTypes dType eType classes)) $ action eType
 
 
+getClassSilent :: Ident -> AS (Maybe (Type Pos))
+
+getClassSilent object = do
+    var <- findVar object
+    case var of
+        Just (_, vType) ->
+            case vType of
+                Class _ classIdent -> return $ Just vType
+                _ -> return Nothing
+        Nothing -> return Nothing
+
+
 getClass :: Pos -> Ident -> AS (Maybe Ident)
 
 getClass pos object = do
@@ -439,6 +451,11 @@ getObjectAttrType :: Pos -> Ident -> Ident -> AS (Maybe (Type Pos))
 
 getObjectAttrType pos object attr = do
     class_ <- getClass pos object
+    classType <- getClassSilent object
+    case classType of
+        Nothing -> return ()
+        Just classType ->
+             placeHintType pos classType
     getClassAttrType pos class_ attr
 
 
@@ -730,18 +747,15 @@ checkRel :: Expr Pos -> AS ()
 
 checkRel (ERel pos e1 op e2) =
     case op of
-        EQU (Just oPos) -> do
+        EQU oPos-> do
             eType1 <- checkExpr e1
             eType2 <- checkExpr e2
             case eType1 of
                 Just eType1 -> do
+                    placeHintType oPos eType1
                     case eType1 of
-                        Int _ -> placeHint oPos Int_
-                        Bool _ -> placeHint oPos Bool_
-                        Str _ -> placeHint oPos Str_
-                        Void _ -> msgVoidComp pos
-                        Class _ (Ident ident) ->
-                            placeHint oPos $ Class_ $ Ident_ ident
+                        Void _ -> msgVoidComp oPos
+                        _ -> return ()
                     checkTypes eType2 eType1 $ msgEqType pos eType1
 
                 Nothing ->

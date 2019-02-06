@@ -19,6 +19,6 @@ main = do
         else do
             hPutStrLn stderr $ show convertedClassMap
 
-            prog <- convert input typeHints convertedClassMap
-            compile prog
+            prog <- convert input typeHints
+            compile prog convertedClassMap
             exitSuccess

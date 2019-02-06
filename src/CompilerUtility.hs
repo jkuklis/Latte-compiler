@@ -7,6 +7,7 @@ import Control.Monad.State
 import qualified Data.Map as M
 import qualified Data.List as L
 
+import ClassMapConverter
 import AbstractTree
 
 
@@ -28,6 +29,7 @@ data CompilerState = CompilerState {
     locVars :: VarMap,
     outVars :: VarMap,
     classes :: ClassMap,
+    classTables :: ConvClassMap,
     stackEnd :: Integer,
     maxStack :: Integer,
     labelsCount :: Integer,
@@ -41,7 +43,10 @@ type CS a = State CompilerState a
 stack = "%ebp"
 frame = "%esp"
 
-startState = CompilerState {
+
+startState :: ConvClassMap -> CompilerState
+
+startState classMap = CompilerState {
     code = [".text"],
     heap = [".section .rodata"],
     funProlog = [],
@@ -49,6 +54,7 @@ startState = CompilerState {
     locVars = M.empty,
     outVars = M.empty,
     classes = M.empty,
+    classTables = classMap,
     stackEnd = 0,
     maxStack = 0,
     labelsCount = 0,
@@ -191,6 +197,45 @@ getHelper helper res2 aux1 aux2 = do
             return aux1
 
 
+getClassTable :: Ident_ -> CS ClassTable
+
+getClassTable ident = do
+    Just table <- gets $ M.lookup ident . classTables
+    return table
+
+
+findOffset :: Ident_ -> Ident_ -> CS Integer
+
+findOffset class_ (Ident_ attr) = do
+    (vMap, _) <- getClassTable class_
+    return $ 4 * ((find vMap 0 (-1) attr) + 1)
+
+
+find :: VMap -> Integer -> Integer -> String -> Integer
+
+find [] which max_ attr = max_
+
+find ((_, (Ident_ clAttr)):vMap) which max_ attr =
+    if clAttr == attr
+        then find vMap (which + 1) which attr
+        else find vMap (which + 1) max_ attr
+
+
+getAttribute :: Ident_ -> String -> Ident_ -> String -> CS String
+
+getAttribute class_ object attr res = do
+    offset <- findOffset class_ attr
+    let
+        attrReg =
+            case res of
+                "%eax" -> "%ecx"
+                _ -> "%eax"
+
+    attrReg <- tryMovl object attrReg
+    let attrLoc = (show offset) ++ "(" ++ attrReg ++ ")"
+    return attrLoc
+
+
 restoreEsp :: [Expr_] -> CS ()
 
 restoreEsp exprs =
@@ -198,6 +243,14 @@ restoreEsp exprs =
         len = length exprs
         lenConstant = "$" ++ (show (4 * len))
     in when (len /= 0) $ emitDouble "addl" lenConstant frame
+
+
+restoreEspLen :: Integer -> CS ()
+
+restoreEspLen argsCount =
+    let
+        lenConstant = "$" ++ (show (4 * argsCount))
+    in when (argsCount /= 0) $ emitDouble "addl" lenConstant frame
 
 
 addLines :: [String] -> CS ()
@@ -376,9 +429,23 @@ transferValues res var =
             ('$':_, _) ->
                 emitDouble "movl" res var
             (_, _) -> do
-                let tmp = "%eax"
+                let
+                    tmp = if length var >= 5
+                        then case takeLast 6 var of
+                            "(%eax)" -> "%ecx"
+                            _ -> "%eax"
+                        else case var of
+                            "%eax" -> "%ecx"
+                            _ -> "%eax"
                 emitDouble "movl" res tmp
                 emitDouble "movl" tmp var
+
+
+takeLast :: Int -> [a] -> [a]
+takeLast n l = go (drop n l) l
+  where
+    go [] r = r
+    go (_:xs) (_:ys) = go xs ys
 
 
 checkMultiple :: String -> String -> CS Bool

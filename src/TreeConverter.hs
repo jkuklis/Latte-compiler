@@ -10,7 +10,6 @@ import ParLatte
 import ErrM
 
 import AbstractTree
-import ClassMapConverter
 
 
 data ConverterState = ConverterState {
@@ -29,9 +28,9 @@ startState hints = ConverterState {
 }
 
 
-convert :: String -> TypeHints -> ConvClassMap -> IO Program_
+convert :: String -> TypeHints -> IO Program_
 
-convert input hints classMap = do
+convert input hints = do
     let
         (Ok prog) = pProgram $ myLexer input
         prog_ = evalState (progConv prog) $ startState hints
@@ -236,6 +235,12 @@ extractApps expr =
         ELitFalse_ -> []
         EApp_ _ _ -> [SExp_ expr]
         EString_ _ -> []
+        ENull_ _ -> []
+        ENew_ _ -> []
+        EASelf_ _ -> []
+        EMSelf_ _ _ -> [SExp_ expr]
+        EAttr_ _ _ _ -> []
+        EMethod_ _ _ _ -> [SExp_ expr]
         Neg_ expr -> extractApps expr
         Not_ expr -> extractApps expr
         EMul_ e1 op e2 -> doubleExtractApps e1 e2
@@ -268,12 +273,13 @@ stmtConv stmt =
             apps <- getApps
             return $ concat [apps, [Ass_ ident expr]]
 
-        AttrAss _ object attr expr -> do
+        AttrAss pos object attr expr -> do
             object <- identConv object
             attr <- identConv attr
             expr <- exprConv expr
             apps <- getApps
-            return $ concat [apps, [AttrAss_ object attr expr]]
+            Class_ classIdent <- findHint pos
+            return $ concat [apps, [AttrAss_ classIdent object attr expr]]
 
         Incr _ ident -> do
             ident <- identConv ident
@@ -407,10 +413,12 @@ exprConv expr =
             exprs <- exprsConv exprs
             return $ EMSelf_ ident exprs
 
-        EAttr _ object attr -> do
+        EAttr pos object attr -> do
             object <- identConv object
             attr <- identConv attr
-            return $ EAttr_ object attr
+            Class_ classIdent <- findHint pos
+
+            return $ EAttr_ classIdent object attr
 
         EMethod _ object method exprs -> do
             object <- identConv object
@@ -499,7 +507,7 @@ exprConv expr =
                         return $ EString_ $ (init str1) ++ (tail str2)
 
                     (_, _) -> do
-                        let (Plus (Just pos)) = oper
+                        let (Plus pos) = oper
                         type_ <- findHint pos
                         case type_ of
                             Int_ -> return $ EAdd_ e1 op e2
@@ -652,16 +660,16 @@ relOpConv op =
         LE _ -> return LE_
         GTH _ -> return GTH_
         GE _ -> return GE_
-        EQU (Just pos) -> do
+        EQU pos -> do
             type_ <- findHint pos
             return $ EQU_ type_
-        NE (Just pos) -> do
+        NE pos -> do
             type_ <- findHint pos
             return $ NE_ type_
 
 
-findHint :: LineChar -> CS Type_
+findHint :: Maybe LineChar -> CS Type_
 
-findHint pos = do
+findHint (Just pos) = do
     Just type_ <- gets $ M.lookup pos . typeHints
     return type_

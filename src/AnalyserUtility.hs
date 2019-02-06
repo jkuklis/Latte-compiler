@@ -292,6 +292,18 @@ placeHint pos type_ =
     modify $ \s -> s { typeHints = M.insert pos type_ (typeHints s) }
 
 
+placeHintType :: Maybe LineChar -> Type Pos -> AS ()
+
+placeHintType (Just pos) type_ =
+    case type_ of
+        Int _ -> placeHint pos Int_
+        Bool _ -> placeHint pos Bool_
+        Str _ -> placeHint pos Str_
+        Class _ (Ident ident) ->
+            placeHint pos $ Class_ $ Ident_ ident
+        _ -> return ()
+
+
 singleQuotes :: Ident -> Bool
 
 singleQuotes (Ident ident) = '\'' `elem` ident

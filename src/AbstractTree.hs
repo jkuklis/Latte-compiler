@@ -41,7 +41,7 @@ data Stmt_
     | BStmt_ Block_
     | Decl_ Type_ [Item_]
     | Ass_ Ident_ Expr_
-    | AttrAss_ Ident_ Ident_ Expr_
+    | AttrAss_ Ident_ Ident_ Ident_ Expr_
     | Incr_ Ident_
     | Decr_ Ident_
     | Ret_ Expr_
@@ -69,7 +69,7 @@ data Expr_
     | ENew_ Ident_
     | EASelf_ Ident_
     | EMSelf_ Ident_ [Expr_]
-    | EAttr_ Ident_ Ident_
+    | EAttr_ Ident_ Ident_ Ident_
     | EMethod_ Ident_ Ident_ [Expr_]
     | Neg_ Expr_
     | Not_ Expr_

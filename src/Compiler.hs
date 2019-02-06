@@ -4,15 +4,18 @@ import Control.Monad.State
 
 import qualified Data.List as L
 
+import AbsLatte
+
 import AbstractTree
 import CompilerUtility
+import ClassMapConverter
 
 
-compile :: Program_ -> IO ()
+compile :: Program_ -> ConvClassMap -> IO ()
 
-compile (Program_ defs) = do
+compile (Program_ defs) classMap = do
     -- putStrLn $ show $ Program_ defs
-    let state = execState (compDefs defs) startState
+    let state = execState (compDefs defs) (startState classMap)
     putStrLn $ unlines $ reverse $ heap state
     putStrLn $ unlines $ reverse $ code state
 
@@ -102,8 +105,8 @@ addStmt stmt = do
         Ass_ ident expr ->
             addAss ident expr
 
-        AttrAss_ object attr expr ->
-            addAttrAss object attr expr
+        AttrAss_ class_ object attr expr ->
+            addAttrAss class_ object attr expr
 
         Incr_ ident ->
             incr ident 1
@@ -257,9 +260,16 @@ addExpr expr =
         ENull_ ident ->
             return $ "$0"
         ENew_ ident -> do
-            emitSingle "pushl" "$8" -- TODO : different length
+            (vMap, _) <- getClassTable ident
+            let size = 4 * ((length vMap) + 1)
+                sizeConst = "$" ++ (show size)
+            emitSingle "pushl" sizeConst
             emitSingle "call" "malloc"
+            restoreEspLen 1
             return "%eax"
+        EAttr_ class_ (Ident_ object) attr -> do
+            obj <- getVar object
+            getAttribute class_ obj attr "%eax"
 
         Neg_ expr -> do
             res <- addExpr expr
@@ -272,6 +282,7 @@ addExpr expr =
         EStrAdd_ e1 e2 -> do
             pushArgs [e2, e1]
             emitSingle "call" "_concatenate"
+            restoreEspLen 2
             return "%eax"
         ERel_ e1 op e2 -> doubleExpr e1 e2 $ emitRel op
         EAnd_ e1 e2 -> emitAnd e1 e2
@@ -326,6 +337,7 @@ emitRel op pos1 pos2 =
             emitSingle "call" "strcmp"
             when (neq == False) $
                 emitSingle "not" "%eax"
+            restoreEspLen 2
             return "%eax"
 
     in case op of
@@ -450,19 +462,13 @@ addAss (Ident_ ident) expr = do
     transferValues res var
 
 
-addAttrAss :: Ident_ -> Ident_ -> Expr_ -> CS ()
+addAttrAss :: Ident_ -> Ident_ -> Ident_ -> Expr_ -> CS ()
 
-addAttrAss (Ident_ object) (Ident_ attr) expr = do
+addAttrAss class_ (Ident_ object) attr expr = do
     res <- addExpr expr
     obj <- getVar object
-    att <- getAttribute obj attr
+    att <- getAttribute class_ obj attr res
     transferValues res att
-
-
-getAttribute :: String -> String -> CS String
-
-getAttribute object attr =
-    return "%eax" -- TODO
 
 
 incr :: Ident_ -> Integer -> CS ()
