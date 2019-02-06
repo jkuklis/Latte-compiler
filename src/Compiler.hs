@@ -274,7 +274,14 @@ addExpr expr =
         EAttr_ class_ (Ident_ object) attr -> do
             obj <- getVar object
             getAttribute class_ obj attr "%eax"
-
+        EMethod_ class_ (Ident_ object) method exprs -> do
+            pushArgs $ reverse exprs
+            obj <- getVar object
+            met <- getMethod class_ obj method
+            -- emitSingle "pushl" obj -- TODO
+            emitSingle "call" met
+            restoreEsp exprs
+            return "%eax"
         Neg_ expr -> do
             res <- addExpr expr
             emitNeg res

@@ -67,25 +67,28 @@ joinAttrs attr vMap = concat [vMap, attr]
 joinMethods :: MMap -> MMap -> MMap
 
 joinMethods methods mMap =
-    foldr joinMethod methods mMap
+    foldr joinMethod mMap methods
 
 
 joinMethod :: (Ident_, Ident_) -> MMap -> MMap
 
 joinMethod (class_, method) mMap =
-    if has method mMap
-        then mMap
+    let (resMap, swapped) = trySwap class_ method mMap
+    in if swapped
+        then resMap
         else concat [mMap, [(class_, method)]]
 
 
-has :: Ident_ -> MMap -> Bool
+trySwap :: Ident_ -> Ident_ -> MMap -> (MMap, Bool)
 
-has ident [] = False
+trySwap _ _ [] = ([], False)
 
-has ident1 ((_, ident2) : mMap) =
+trySwap class_ ident1 (f@(_, ident2) : mMap) =
     if ident1 == ident2
-        then True
-        else has ident1 mMap
+        then ((class_, ident1) : mMap, True)
+        else
+            let (res, swapped) = trySwap class_ ident1 mMap
+            in (f : res, swapped)
 
 
 addAttribute :: Ident_ -> Ident -> VarProto -> VMap -> VMap

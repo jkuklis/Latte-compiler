@@ -240,7 +240,7 @@ extractApps expr =
         EASelf_ _ -> []
         EMSelf_ _ _ -> [SExp_ expr]
         EAttr_ _ _ _ -> []
-        EMethod_ _ _ _ -> [SExp_ expr]
+        EMethod_ _ _ _ _ -> [SExp_ expr]
         Neg_ expr -> extractApps expr
         Not_ expr -> extractApps expr
         EMul_ e1 op e2 -> doubleExtractApps e1 e2
@@ -420,11 +420,12 @@ exprConv expr =
 
             return $ EAttr_ classIdent object attr
 
-        EMethod _ object method exprs -> do
+        EMethod pos object method exprs -> do
             object <- identConv object
             method <- identConv method
             exprs <- exprsConv exprs
-            return $ EMethod_ object method exprs
+            Class_ classIdent <- findHint pos
+            return $ EMethod_ classIdent object method exprs
 
         Neg _ expr -> do
             expr <- exprConv expr

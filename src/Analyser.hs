@@ -493,6 +493,11 @@ getObjectMethod :: Pos -> Ident -> Ident -> AS (Maybe FunProto)
 
 getObjectMethod pos object method = do
     class_ <- getClass pos object
+    classType <- getClassSilent object
+    case classType of
+        Nothing -> return ()
+        Just classType ->
+             placeHintType pos classType
     getMethod pos class_ method
 
 

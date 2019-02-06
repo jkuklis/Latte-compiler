@@ -85,9 +85,21 @@ virtualMethods (Ident_ ident) methods =
 
 virtualMethod :: (Ident_, Ident_) -> [String] -> [String]
 
-virtualMethod (Ident_ class_, Ident_ method) table =
-    let line = "\t.long\t_" ++ class_ ++ "_" ++ method
+virtualMethod (class_, method) table =
+    let line = "\t.long\t" ++ (mergeIdentsReg class_ method)
     in line : table
+
+
+mergeIdentsReg :: Ident_ -> Ident_ -> String
+
+mergeIdentsReg (Ident_ ident1) (Ident_ ident2) =
+    "_" ++ ident2 ++ "__" ++ ident1
+
+
+mergeIdents :: Ident_ -> Ident_ -> CS Ident_
+
+mergeIdents ident1 ident2 =
+    return $ Ident_ $ mergeIdentsReg ident1 ident2
 
 
 addFun :: Ident_ -> CS ()
@@ -231,27 +243,28 @@ getClassTable ident = do
     return table
 
 
-findOffset :: Ident_ -> Ident_ -> CS Integer
+findAttrOffset :: Ident_ -> Ident_ -> CS Integer
 
-findOffset class_ (Ident_ attr) = do
+findAttrOffset class_ (Ident_ attr) = do
     (vMap, _) <- getClassTable class_
-    return $ 4 * ((find vMap 0 (-1) attr) + 1)
+    let offset = findAttr vMap 0 (-1) attr
+    return $ 4 * (offset + 1)
 
 
-find :: VMap -> Integer -> Integer -> String -> Integer
+findAttr :: VMap -> Integer -> Integer -> String -> Integer
 
-find [] which max_ attr = max_
+findAttr [] which max_ attr = max_
 
-find ((_, (Ident_ clAttr)):vMap) which max_ attr =
+findAttr ((_, (Ident_ clAttr)):vMap) which max_ attr =
     if clAttr == attr
-        then find vMap (which + 1) which attr
-        else find vMap (which + 1) max_ attr
+        then findAttr vMap (which + 1) which attr
+        else findAttr vMap (which + 1) max_ attr
 
 
 getAttribute :: Ident_ -> String -> Ident_ -> String -> CS String
 
 getAttribute class_ object attr res = do
-    offset <- findOffset class_ attr
+    offset <- findAttrOffset class_ attr
     let
         attrReg =
             case res of
@@ -261,6 +274,32 @@ getAttribute class_ object attr res = do
     attrReg <- tryMovl object attrReg
     let attrLoc = (show offset) ++ "(" ++ attrReg ++ ")"
     return attrLoc
+
+
+findMethodOffset :: Ident_ -> Ident_ -> CS Integer
+
+findMethodOffset class_ (Ident_ method) = do
+    (_, mMap) <- getClassTable class_
+    let offset = findMethod mMap 0 method
+    return $ 4 * offset
+
+
+findMethod :: MMap -> Integer -> String -> Integer
+
+findMethod ((_, (Ident_ clMethod)):mMap) which method =
+    if clMethod == method
+        then which
+        else findMethod mMap (which + 1) method
+
+
+getMethod :: Ident_ -> String -> Ident_ -> CS String
+
+getMethod class_ object method = do
+    offset <- findMethodOffset class_ method
+    objectAddress <- tryMovl object "%eax"
+    tableAddress <- tryMovl "(%eax)" "%eax"
+    let funLoc = "*" ++ (show offset) ++ "(%eax)"
+    return funLoc
 
 
 restoreEsp :: [Expr_] -> CS ()
@@ -529,9 +568,3 @@ isConstant pos = case pos of
 isMemory :: String -> Bool
 
 isMemory pos = not $ (isRegister pos) || (isConstant pos)
-
-
-mergeIdents :: Ident_ -> Ident_ -> CS Ident_
-
-mergeIdents (Ident_ ident1) (Ident_ ident2) =
-    return $ Ident_ $ "_" ++ ident1 ++ "_" ++ ident2
