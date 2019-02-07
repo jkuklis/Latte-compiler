@@ -205,6 +205,8 @@ addDecl type_ item =
                 Bool_ -> emitDouble "movl" "$0" pos
                 Class_ classIdent ->
                     emitDouble "movl" "$0" pos
+                Array_ type_ ->
+                    emitDouble "movl" "$0" pos
 
         Init_ (Ident_ ident) expr -> do
             res <- addExpr expr
@@ -269,19 +271,11 @@ addExpr expr =
         EString_ str -> do
             res <- addToHeap str
             return $ "$" ++ res
-        ENull_ ident ->
-            return $ "$0"
-        ENew_ ident@(Ident_ ident_) -> do
-            (vMap, _) <- getClassTable ident
-            let size = 4 * ((length vMap) + 1)
-                sizeConst = "$" ++ (show size)
-                label = "$__" ++ ident_
-            emitSingle "pushl" sizeConst
-            emitSingle "pushl" "$1"
-            emitSingle "call" "calloc"
-            restoreEspLen 2
-            emitDouble "movl" label "(%eax)"
-            return "%eax"
+        ENull_ ident -> return $ "$0"
+        EArrayNew_ expr -> do
+            res <- addExpr expr
+            emitNewArray res
+        ENew_ ident -> emitNew ident
         EASelf_ (Ident_ attr) -> getVar attr
         EMSelf_ method exprs -> do
             class_ <- gets curClass
@@ -309,6 +303,31 @@ addExpr expr =
         ERel_ e1 op e2 -> doubleExpr e1 e2 $ emitRel op
         EAnd_ e1 e2 -> emitAnd e1 e2
         EOr_ e1 e2 -> emitOr e1 e2
+
+
+emitNewArray :: String -> CS String
+
+emitNewArray res = do
+    let aux = "%ecx"
+    res <- tryMovl res "%eax"
+    emitSingle "incl" res
+    helper <- addHelper res
+    callCalloc res
+    getHelperStrict helper aux
+    emitDouble "movl" aux "(%eax)"
+    return "%eax"
+
+
+emitNew :: Ident_ -> CS String
+
+emitNew ident@(Ident_ ident_) = do
+    (vMap, _) <- getClassTable ident
+    let size = 4 * ((length vMap) + 1)
+        sizeConst = "$" ++ (show size)
+        label = "$__" ++ ident_
+    callCalloc sizeConst
+    emitDouble "movl" label "(%eax)"
+    return "%eax"
 
 
 emitMul :: MulOp_ -> String -> String -> CS String

@@ -242,6 +242,13 @@ addHelper pos =
             return pos
 
 
+getHelperStrict :: String -> String -> CS String
+
+getHelperStrict helper aux = do
+    modify $ \s -> s { stackEnd = stackEnd s - 4 }
+    strictMovl helper aux
+
+
 getHelper :: String -> String -> String -> String -> CS String
 
 getHelper helper res2 aux1 aux2 = do
@@ -524,6 +531,15 @@ transferValues res var =
                             _ -> "%eax"
                 emitDouble "movl" res tmp
                 emitDouble "movl" tmp var
+
+
+callCalloc :: String -> CS ()
+
+callCalloc res = do
+    emitSingle "pushl" res
+    emitSingle "pushl" "$1"
+    emitSingle "call" "calloc"
+    restoreEspLen 2
 
 
 takeLast :: Int -> [a] -> [a]

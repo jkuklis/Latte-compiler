@@ -44,6 +44,7 @@ data Stmt_
     | BStmt_ Block_
     | Decl_ Type_ [Item_]
     | Ass_ Ident_ Expr_
+    | ElemAss_ Ident_ Expr_ Expr_
     | AttrAss_ Ident_ Ident_ Ident_ Expr_
     | SelfAtAss_ Ident_ Expr_
     | Incr_ Ident_
@@ -61,7 +62,15 @@ data Stmt_
 data Item_ = NoInit_ Ident_ | Init_ Ident_ Expr_
   deriving (Eq, Ord, Show, Read)
 
-data Type_ = Int_ | Str_ | Bool_ | Void_ | Class_ Ident_ | Fun_ Type_ [Type_] | None_
+data Type_
+    = Int_
+    | Str_
+    | Bool_
+    | Void_
+    | Class_ Ident_
+    | Array_ Type_
+    | Fun_ Type_ [Type_]
+    | None_
   deriving (Eq, Ord, Show, Read)
 
 data Expr_
@@ -72,6 +81,7 @@ data Expr_
     | EApp_ Ident_ [Expr_]
     | EString_ String
     | ENull_ Ident_
+    | EArrayNew_ Expr_
     | ENew_ Ident_
     | EASelf_ Ident_
     | EMSelf_ Ident_ [Expr_]

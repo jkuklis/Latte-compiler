@@ -93,6 +93,9 @@ typeConv type_ =
         Class _ ident -> do
             ident <- identConv ident
             return $ Class_ ident
+        Array _ type_ -> do
+            type_ <- typeConv type_
+            return $ Array_ type_
 
 
 argsConv :: [Arg Pos] -> CS [Arg_]
@@ -212,7 +215,15 @@ gatherStmt (ret, sts) st =
                     ELitTrue_ -> (returned, newWhile:sts)
                     _ -> (False, newWhile:sts)
 
-            _ -> (False, st:sts)
+            Decl_ _ _ -> (False, st:sts)
+            Ass_ _ _ -> (False, st:sts)
+            ElemAss_ _ _ _ -> (False, st:sts)
+            AttrAss_ _ _ _ _ -> (False, st:sts)
+            SelfAtAss_ _ _ -> (False, st:sts)
+            Incr_ _ -> (False, st:sts)
+            Decr_ _ -> (False, st:sts)
+            SelfIncr_ _ -> (False, st:sts)
+            SelfDecr_ _ -> (False, st:sts)
 
 
 -- used for extracting function applications from constant expressions
@@ -231,6 +242,7 @@ extractApps expr =
         EApp_ _ _ -> [SExp_ expr]
         EString_ _ -> []
         ENull_ _ -> []
+        EArrayNew_ _ -> []
         ENew_ _ -> []
         EASelf_ _ -> []
         EMSelf_ _ _ -> [SExp_ expr]
@@ -407,6 +419,10 @@ exprConv expr =
         ENull _ ident -> do
             ident <- identConv ident
             return $ ENull_ ident
+
+        EArrayNew _ _ expr -> do
+            expr <- exprConv expr
+            return $ EArrayNew_ expr
 
         ENew _ ident -> do
             ident <- identConv ident

@@ -7,6 +7,7 @@ import Control.Monad.State
 import qualified Data.Map as M
 
 import AbsLatte
+
 import AbstractTree
 
 
@@ -220,6 +221,8 @@ cmpTypes (Bool pos1) (Bool pos2) _ = True
 cmpTypes (Void pos1) (Void pos2) _ = True
 cmpTypes (Class pos1 ident1) (Class pos2 ident2) classes =
     subClass ident1 ident2 classes
+cmpTypes (Array pos1 type1) (Array pos2 type2) classes =
+    cmpTypes type1 type2 classes
 cmpTypes _ _ _ = False
 
 
@@ -245,6 +248,7 @@ showType type_ = case type_ of
     Bool pos -> "bool"
     Void pos -> "void"
     Class pos (Ident ident) -> "class " ++ ident
+    Array pos type_ -> "array " ++ (showType type_)
 
 
 defaultPos :: Pos

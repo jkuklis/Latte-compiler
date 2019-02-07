@@ -46,6 +46,8 @@ separator nonempty Item "," ;
 
 Ass.       Stmt ::= Ident "=" Expr  ";" ;
 
+ElemAss.   Stmt ::= Ident "[" Expr "]" "=" Expr ";" ;
+
 AttrAss.   Stmt ::= Ident "." Ident "=" Expr ";" ;
 
 SelfAtAss. Stmt ::= "self" "." Ident "=" Expr ";" ;
@@ -68,19 +70,25 @@ CondElse.  Stmt ::= "if" "(" Expr ")" Stmt "else" Stmt  ;
 
 While.     Stmt ::= "while" "(" Expr ")" Stmt ;
 
+ForEach.   Stmt ::= "for" "(" Type Ident ":" Ident ")" Stmt ;
+
 SExp.      Stmt ::= Expr  ";" ;
 
 -- Types ---------------------------------------------------
 
-Int.       Type ::= "int" ;
+Int.       Type1 ::= "int" ;
 
-Str.       Type ::= "string" ;
+Str.       Type1 ::= "string" ;
 
-Bool.      Type ::= "boolean" ;
+Bool.      Type1 ::= "boolean" ;
 
-Void.      Type ::= "void" ;
+Void.      Type1 ::= "void" ;
 
-Class.     Type ::= Ident ;
+Class.     Type1 ::= Ident ;
+
+Array.     Type ::= Type1 "[" "]" ;
+
+coercions  Type 1 ;
 
 -- internal   InhClass. Type ::= Ident Ident ;
 
@@ -102,7 +110,11 @@ EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
 
 EString.   Expr6 ::= String ;
 
+EElem.     Expr6 ::= Ident "[" Expr "]" ;
+
 ENull.     Expr6 ::= "(" Ident ")" "null" ;
+
+EArrayNew. Expr6 ::= "new" Type1 "[" Expr "]" ;
 
 ENew.      Expr6 ::= "new" Ident ;
 

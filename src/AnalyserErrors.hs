@@ -283,6 +283,14 @@ msgArgType pos (Ident ident) (Ident aIdent) aType eType =
     ++ (posInfo "Invoked" pos)
 
 
+msgArraySize :: Pos -> Type Pos -> AS ()
+
+msgArraySize pos eType =
+    addError $ "Not an int for array size"
+    ++ ", got: " ++ (showType eType) ++ "\n"
+    ++ (posInfo "Used" pos)
+
+
 msgNeg :: Pos -> Type Pos -> AS ()
 
 msgNeg pos eType =
