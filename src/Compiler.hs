@@ -271,6 +271,9 @@ addExpr expr =
         EString_ str -> do
             res <- addToHeap str
             return $ "$" ++ res
+        EElem_ ident expr -> do
+            res <- addExpr expr
+            emitElem ident res
         ENull_ ident -> return $ "$0"
         EArrayNew_ expr -> do
             res <- addExpr expr
@@ -303,6 +306,21 @@ addExpr expr =
         ERel_ e1 op e2 -> doubleExpr e1 e2 $ emitRel op
         EAnd_ e1 e2 -> emitAnd e1 e2
         EOr_ e1 e2 -> emitOr e1 e2
+
+
+emitElem :: Ident_ -> String -> CS String
+
+emitElem (Ident_ ident) res = do
+    res <- tryMovl res "%eax"
+    emitSingle "incl" res
+    arrarAddress <- getVar ident
+    let
+        aux = case res of
+            "%eax" -> "%ecx"
+            _ -> "%eax"
+    emitDouble "movl" arrarAddress aux
+    emitDouble "leal" ("4(" ++ aux ++ ", " ++ res ++ ", 4)") aux
+    return $ "(" ++ aux ++ ")"
 
 
 emitNewArray :: String -> CS String

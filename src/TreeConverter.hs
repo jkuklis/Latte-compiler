@@ -241,6 +241,7 @@ extractApps expr =
         ELitFalse_ -> []
         EApp_ _ _ -> [SExp_ expr]
         EString_ _ -> []
+        EElem_ _ _ -> []
         ENull_ _ -> []
         EArrayNew_ _ -> []
         ENew_ _ -> []
@@ -415,6 +416,11 @@ exprConv expr =
 
         EString _ str ->
             return $ EString_ str
+
+        EElem _ ident expr -> do
+            ident <- identConv ident
+            expr <- exprConv expr
+            return $ EElem_ ident expr
 
         ENull _ ident -> do
             ident <- identConv ident

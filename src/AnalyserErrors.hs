@@ -437,3 +437,10 @@ msgVoidComp :: Pos -> AS ()
 msgVoidComp pos =
     addError $ "Void comparison!\n"
     ++ (posInfo "Compared" pos)
+
+
+msgNotArray :: Ident -> Pos -> AS ()
+
+msgNotArray (Ident ident) pos =
+    addError $ ident ++ "is not an array!\n"
+    ++ (posInfo "Index accessed" pos)

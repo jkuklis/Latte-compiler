@@ -58,12 +58,33 @@ checkExpr expr = case expr of
     EString pos str ->
         return $ Just $ Str pos
 
+    EElem pos ident expr -> do
+        eType <- checkExpr expr
+        checkTypes eType defaultInt $ msgArraySize pos
+
+        var <- findVar pos ident
+        case var of
+            Just (vPos, vType) ->
+                case vType of
+                    Array aPos aType -> return $ Just aType
+                    _ -> do
+                        msgNotArray ident pos
+                        return Nothing
+            Nothing -> do
+                msgVarUndefined ident pos
+                return Nothing
+
     ENull pos ident -> checkExpr $ ENew pos ident
 
     EArrayNew pos type_ expr -> do
         eType <- checkExpr expr
         checkTypes eType defaultInt $ msgArraySize pos
-        return $ Just $ Array pos type_
+        case type_ of
+            Class cPos cIdent -> do
+                checkExpr $ ENew cPos cIdent
+                return $ Just $ Array pos type_
+            _ ->
+                return $ Just $ Array pos type_
 
     ENew pos ident -> do
         class_ <- getClassProto ident
