@@ -46,6 +46,8 @@ frame = "%esp"
 
 selfObject = "8(%ebp)"
 
+notRealReg = "notRealReg"
+
 
 startState :: ConvClassMap -> CompilerState
 
@@ -540,6 +542,23 @@ callCalloc res = do
     emitSingle "pushl" "$1"
     emitSingle "call" "calloc"
     restoreEspLen 2
+
+
+getArrayElem :: String -> String -> String -> CS String
+
+getArrayElem ident res taken = do
+    emitSingle "incl" res
+    arrarAddress <- getVar ident
+
+    let
+        aux = if (res /= "%eax") && (taken /= "%eax")
+                then "%eax"
+                else if (res /= "%ecx") && (taken /= "%ecx")
+                    then "%ecx"
+                    else "%edx"
+    emitDouble "movl" arrarAddress aux
+    emitDouble "leal" ("4(" ++ aux ++ ", " ++ res ++ ", 4)") aux
+    return $ "(" ++ aux ++ ")"
 
 
 takeLast :: Int -> [a] -> [a]

@@ -292,6 +292,22 @@ checkStmt st = case st of
                 msgVarUndeclared ident pos
         return False
 
+    ElemAss pos ident index expr -> do
+        eType <- checkExpr expr
+        index <- checkExpr index
+        checkTypes index defaultInt $ msgArraySize pos
+        var <- findVar pos ident
+        case var of
+            Just (vPos, vType) ->
+                case vType of
+                    Array aPos aType ->
+                        checkTypes eType aType $ msgElementAssign ident pos aType vPos
+                    _ -> msgNotArray ident pos
+            Nothing ->
+                msgVarUndefined ident pos
+        return False
+
+
     AttrAss pos object attr expr -> do
         eType <- checkExpr expr
         aType <- getObjectAttrType pos object attr

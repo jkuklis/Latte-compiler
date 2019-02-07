@@ -112,9 +112,9 @@ EString.   Expr6 ::= String ;
 
 EElem.     Expr6 ::= Ident "[" Expr "]" ;
 
-ENull.     Expr6 ::= "(" Ident ")" "null" ;
-
 EArrayNew. Expr6 ::= "new" Type1 "[" Expr "]" ;
+
+ENull.     Expr6 ::= "(" Ident ")" "null" ;
 
 ENew.      Expr6 ::= "new" Ident ;
 

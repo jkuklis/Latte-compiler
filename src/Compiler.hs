@@ -98,6 +98,9 @@ addStmt stmt = do
         Ass_ ident expr ->
             addAss ident expr
 
+        ElemAss_ ident index expr ->
+            addElemAss ident index expr
+
         AttrAss_ class_ object attr expr ->
             addAttrAss class_ object attr expr
 
@@ -226,37 +229,14 @@ addDecl type_ item =
 addExpr :: Expr_ -> CS String
 
 addExpr expr =
-    let
-        noHelperCont res1 e2 cont = do
-            res2 <- addExpr e2
-            cont res1 res2
-
-        doubleExpr e1 e2 cont = do
-            res1 <- addExpr e1
-            case e2 of
-                EVar_ _ -> noHelperCont res1 e2 cont
-                ELitInt_ _ -> noHelperCont res1 e2 cont
-                ELitTrue_ -> noHelperCont res1 e2 cont
-                ELitFalse_ -> noHelperCont res1 e2 cont
-                EString_ _ -> noHelperCont res1 e2 cont
-                _ -> do
-                    helper <- addHelper res1
-                    res2 <- addExpr e2
-                    if (helper /= res1)
-                        then do
-                            res1Back <- getHelper helper res2 "%eax" "%ecx"
-                            cont res1Back res2
-                        else
-                            cont res1 res2
-
-        methodCont class_ obj method exprs = do
-            pushArgs $ reverse exprs
-            met <- getMethod class_ obj method
-            emitSingle "pushl" obj
-            emitSingle "call" met
-            restoreEspLen 1
-            restoreEsp exprs
-            return "%eax"
+    let methodCont class_ obj method exprs = do
+        pushArgs $ reverse exprs
+        met <- getMethod class_ obj method
+        emitSingle "pushl" obj
+        emitSingle "call" met
+        restoreEspLen 1
+        restoreEsp exprs
+        return "%eax"
 
     in case expr of
         EVar_ (Ident_ eIdent) -> getVar eIdent
@@ -296,31 +276,48 @@ addExpr expr =
         Not_ expr -> do
             res <- addExpr expr
             emitNot res
-        EMul_ e1 op e2 -> doubleExpr e1 e2 $ emitMul op
-        EAdd_ e1 op e2 -> doubleExpr e1 e2 $ emitAdd op
+        EMul_ e1 op e2 -> emitDoubleExpr e1 e2 $ emitMul op
+        EAdd_ e1 op e2 -> emitDoubleExpr e1 e2 $ emitAdd op
         EStrAdd_ e1 e2 -> do
             pushArgs [e2, e1]
             emitSingle "call" "_concatenate"
             restoreEspLen 2
             return "%eax"
-        ERel_ e1 op e2 -> doubleExpr e1 e2 $ emitRel op
+        ERel_ e1 op e2 -> emitDoubleExpr e1 e2 $ emitRel op
         EAnd_ e1 e2 -> emitAnd e1 e2
         EOr_ e1 e2 -> emitOr e1 e2
+
+
+emitDoubleExpr :: Expr_ -> Expr_ -> (String -> String -> CS String) -> CS String
+
+emitDoubleExpr e1 e2 cont = do
+    let noHelperCont res1 e2 cont = do
+        res2 <- addExpr e2
+        cont res1 res2
+
+    res1 <- addExpr e1
+    case e2 of
+        EVar_ _ -> noHelperCont res1 e2 cont
+        ELitInt_ _ -> noHelperCont res1 e2 cont
+        ELitTrue_ -> noHelperCont res1 e2 cont
+        ELitFalse_ -> noHelperCont res1 e2 cont
+        EString_ _ -> noHelperCont res1 e2 cont
+        _ -> do
+            helper <- addHelper res1
+            res2 <- addExpr e2
+            if (helper /= res1)
+                then do
+                    res1Back <- getHelper helper res2 "%eax" "%ecx"
+                    cont res1Back res2
+                else
+                    cont res1 res2
 
 
 emitElem :: Ident_ -> String -> CS String
 
 emitElem (Ident_ ident) res = do
     res <- tryMovl res "%eax"
-    emitSingle "incl" res
-    arrarAddress <- getVar ident
-    let
-        aux = case res of
-            "%eax" -> "%ecx"
-            _ -> "%eax"
-    emitDouble "movl" arrarAddress aux
-    emitDouble "leal" ("4(" ++ aux ++ ", " ++ res ++ ", 4)") aux
-    return $ "(" ++ aux ++ ")"
+    getArrayElem ident res notRealReg
 
 
 emitNewArray :: String -> CS String
@@ -519,6 +516,23 @@ addAss (Ident_ ident) expr = do
     res <- addExpr expr
     var <- getVar ident
     transferValues res var
+
+
+addElemAss :: Ident_ -> Expr_ -> Expr_ -> CS ()
+
+addElemAss (Ident_ ident) index expr =
+    let cont exprVal indexVal = do
+        let
+            aux = case exprVal of
+                "%eax" -> "%ecx"
+                _ -> "%eax"
+        indexVal <- tryMovl indexVal aux
+        elemAddress <- getArrayElem ident indexVal exprVal
+        transferValues exprVal elemAddress
+        return elemAddress
+    in do
+        emitDoubleExpr expr index cont
+        return ()
 
 
 addAttrAss :: Ident_ -> Ident_ -> Ident_ -> Expr_ -> CS ()

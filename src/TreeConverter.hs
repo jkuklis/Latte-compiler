@@ -281,6 +281,14 @@ stmtConv stmt =
             apps <- getApps
             return $ concat [apps, [Ass_ ident expr]]
 
+        ElemAss _ ident index expr -> do
+            ident <- identConv ident
+            expr <- exprConv expr
+            exprApps <- getApps
+            index <- exprConv index
+            indexApps <- getApps
+            return $ concat [exprApps, indexApps, [ElemAss_ ident index expr]]
+
         AttrAss pos object attr expr -> do
             object <- identConv object
             attr <- identConv attr

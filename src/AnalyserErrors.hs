@@ -130,6 +130,16 @@ msgAssign (Ident ident) pos vType prevPos eType =
     ++ (posInfo "Defined" prevPos)
 
 
+msgElementAssign :: Ident -> Pos -> Type Pos -> Pos -> Type Pos -> AS ()
+
+msgElementAssign (Ident ident) pos aType prevPos eType =
+    addError $ "Incorrect type in array " ++ ident ++ " element!\n"
+    ++ (posInfo "Assignment" pos)
+    ++ "Array element type: " ++ (showType aType)
+    ++ ", expression type: " ++ (showType eType) ++ "\n"
+    ++ (posInfo "Array defined" prevPos)
+
+
 msgReturn :: Pos -> Type Pos -> AS ()
 
 msgReturn pos eType = do
