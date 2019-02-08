@@ -84,8 +84,14 @@ checkExpr expr = case expr of
             else
                 return $ Just $ Class pos ident
 
-    EAttr pos object attr ->
-        getObjectAttrType pos object attr
+    EAttr pos object attr -> do
+        obj <- findVar pos object
+        case obj of
+            Just (pPos, Array aPos type_) ->
+                case attr of
+                    Ident "length" -> return $ Just $ Int pos
+                    _ -> getObjectAttrType pos object attr
+            _ -> getObjectAttrType pos object attr
 
     EMethod pos object method exprs -> do
         fun <- getObjectMethod pos object method

@@ -533,7 +533,7 @@ addElemAss :: Ident_ -> Expr_ -> Expr_ -> CS ()
 addElemAss (Ident_ ident) index expr =
     let cont exprVal indexVal = do
         let
-            aux = case exprVal of
+            aux = case extractReg exprVal of
                 "%eax" -> "%ecx"
                 _ -> "%eax"
         indexVal <- tryMovl indexVal aux

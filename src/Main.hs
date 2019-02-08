@@ -21,7 +21,7 @@ main = do
             -- hPutStrLn stderr $ show typeHints
 
             prog <- convert input typeHints
-            hPutStrLn stderr $ show prog
+            -- hPutStrLn stderr $ show prog
 
             compile prog convertedClassMap
             exitSuccess

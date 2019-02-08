@@ -35,7 +35,8 @@ data CompilerState = CompilerState {
     maxStack :: Integer,
     labelsCount :: Integer,
     stringsCount :: Integer,
-    helpers :: Integer
+    helpers :: Integer,
+    helperWasAddress :: [Bool]
     } deriving Show
 
 type CS a = State CompilerState a
@@ -65,7 +66,8 @@ startState classMap = CompilerState {
     maxStack = 0,
     labelsCount = 0,
     stringsCount = 0,
-    helpers = 0
+    helpers = 0,
+    helperWasAddress = []
     }
 
 
@@ -248,12 +250,16 @@ addOuterVar ident pos =
 addHelper :: String -> CS String
 
 addHelper pos =
-    if isRegister pos
+    let pos_ = extractReg pos
+    in if isRegister pos_
         then do
             count <- gets helpers
             stackPos <- addStack $ "_helper" ++ (show count)
-            strictMovl pos stackPos
-            modify $ \s -> s { helpers = count + 1 }
+            transferValues pos_ stackPos
+            modify $ \s -> s {
+                helpers = count + 1,
+                helperWasAddress = (pos /= pos_) : (helperWasAddress s)
+            }
             return stackPos
         else
             return pos
@@ -262,25 +268,28 @@ addHelper pos =
 getHelperStrict :: String -> String -> CS String
 
 getHelperStrict helper aux = do
-    modify $ \s -> s { stackEnd = stackEnd s - 4 }
     strictMovl helper aux
+
+    thisHelperWasAddress <- gets $ head . helperWasAddress
+    modify $ \s -> s {
+        stackEnd = stackEnd s - 4,
+        helperWasAddress = tail (helperWasAddress s)
+    }
+
+    if thisHelperWasAddress
+        then return $ "(" ++ aux ++ ")"
+        else return aux
 
 
 getHelper :: String -> String -> String -> String -> CS String
 
 getHelper helper res2 aux1 aux2 = do
-    let cont aux = do
-        strictMovl helper aux2
-        return aux2
-
-    modify $ \s -> s { stackEnd = stackEnd s - 4 }
-    if length res2 > 5
-        then if takeLast 6 res2 == aux1
-            then cont aux2
-            else cont aux1
-        else if res2 == aux1
-            then cont aux2
-            else cont aux1
+    let
+        taken = extractReg res2
+        aux = if taken == aux1
+            then aux2
+            else aux1
+    getHelperStrict helper aux
 
 
 getClassTable :: Ident_ -> CS ClassTable
@@ -545,13 +554,10 @@ transferValues res var =
                 emitDouble "movl" res var
             (_, _) -> do
                 let
-                    tmp = if length var >= 5
-                        then case takeLast 6 var of
-                            "(%eax)" -> "%ecx"
-                            _ -> "%eax"
-                        else case var of
-                            "%eax" -> "%ecx"
-                            _ -> "%eax"
+                    extrVar = extractReg var
+                    tmp = case extrVar of
+                        "%eax" -> "%ecx"
+                        _ -> "%eax"
                 emitDouble "movl" res tmp
                 emitDouble "movl" tmp var
 
@@ -567,11 +573,13 @@ callCalloc res = do
 
 getArrayElem :: String -> String -> String -> CS String
 
-getArrayElem ident res taken = do
-    emitSingle "incl" res
+getArrayElem ident res_ taken_ = do
+    emitSingle "incl" res_
     arrarAddress <- getVar ident
 
     let
+        res = extractReg res_
+        taken = extractReg taken_
         aux = if (res /= "%eax") && (taken /= "%eax")
                 then "%eax"
                 else if (res /= "%ecx") && (taken /= "%ecx")
@@ -637,7 +645,9 @@ checkEmptyLabel = do
 isRegister :: String -> Bool
 
 isRegister pos = case pos of
-    '%':_ -> True
+    "%eax" -> True
+    "%ecx" -> True
+    "%edx" -> True
     _ -> False
 
 
