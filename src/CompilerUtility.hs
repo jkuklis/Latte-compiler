@@ -574,7 +574,6 @@ callCalloc res = do
 getArrayElem :: String -> String -> String -> CS String
 
 getArrayElem ident res_ taken_ = do
-    emitSingle "incl" res_
     arrarAddress <- getVar ident
 
     let
