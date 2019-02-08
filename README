@@ -11,7 +11,7 @@ Zawsze prawdziwe if'y są redukowane do związanych z nimi instrukcji.
 
 Usuwane są instrukcje nieosiągalne - instrukcje po returnach, w zawsze fałszywych gałęziach ifów.
 
-Rozszerzenia: pełne klasy - kompilator działa poprawnie na dostarczonych testach.
+Rozszerzenia: tablice i pełne klasy - kompilator działa poprawnie na dostarczonych testach.
 
 Dodatkowo można odwoływać się poprzez 'self' do wartości atrybutów klasy,
 nawet gdy są przysłonięte deklaracjami zmiennych o tych samych nazwach.
@@ -21,6 +21,8 @@ Dopuszczalne jest tylko pojedyncze zagnieżdżenie kropek, co jednak wystarcza, 
 
 Wyjaśnienie:
 tmp = a . b . c; niedopuszczalne, ale można zrobić tmp = a . b; tmp2 = b . c;
+
+Dla tablic zaimplementowane jest tylko pojedyncze zagnieżdżenie.
 
 
 Zbudowanie:

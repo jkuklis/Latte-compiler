@@ -21,6 +21,8 @@ type ClassMap = M.Map Ident_ ClassProto
 
 type VarMap = M.Map String String
 
+type AddressOffsets = [Maybe String]
+
 data CompilerState = CompilerState {
     code :: [String],
     heap :: [String],
@@ -35,8 +37,7 @@ data CompilerState = CompilerState {
     maxStack :: Integer,
     labelsCount :: Integer,
     stringsCount :: Integer,
-    helpers :: Integer,
-    helperWasAddress :: [Bool]
+    onStackAddressOffset :: AddressOffsets
     } deriving Show
 
 type CS a = State CompilerState a
@@ -66,8 +67,7 @@ startState classMap = CompilerState {
     maxStack = 0,
     labelsCount = 0,
     stringsCount = 0,
-    helpers = 0,
-    helperWasAddress = []
+    onStackAddressOffset = []
     }
 
 
@@ -253,14 +253,14 @@ addHelper pos =
     let pos_ = extractReg pos
     in if isRegister pos_
         then do
-            count <- gets helpers
-            stackPos <- addStack $ "_helper" ++ (show count)
-            transferValues pos_ stackPos
+            emitSingle "pushl" pos_
+            let first = if pos /= pos_
+                then Just $ take (length pos - 6) pos
+                else Nothing
             modify $ \s -> s {
-                helpers = count + 1,
-                helperWasAddress = (pos /= pos_) : (helperWasAddress s)
+                onStackAddressOffset = first : (onStackAddressOffset s)
             }
-            return stackPos
+            return "onStack"
         else
             return pos
 
@@ -268,17 +268,21 @@ addHelper pos =
 getHelperStrict :: String -> String -> CS String
 
 getHelperStrict helper aux = do
-    strictMovl helper aux
+    emitSingle "popl" aux
 
-    thisHelperWasAddress <- gets $ head . helperWasAddress
+    addressOffset <- gets $ head . onStackAddressOffset
     modify $ \s -> s {
-        stackEnd = stackEnd s - 4,
-        helperWasAddress = tail (helperWasAddress s)
+        onStackAddressOffset = tail (onStackAddressOffset s)
     }
 
-    if thisHelperWasAddress
-        then return $ "(" ++ aux ++ ")"
-        else return aux
+    case addressOffset of
+        Just offset ->
+            let
+                memAux = "(" ++ aux ++ ")"
+            in if offset == ""
+                then return memAux
+                else return $ offset ++ memAux
+        Nothing -> return aux
 
 
 getHelper :: String -> String -> String -> String -> CS String
