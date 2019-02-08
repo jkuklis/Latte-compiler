@@ -144,6 +144,7 @@ addCond :: Expr_ -> Stmt_ -> CS ()
 addCond expr stmt = do
     label <- nextLabel
     res <- addExpr expr
+    res <- tryMovl res "%eax"
     emitDouble "cmp" "$0" res
     emitSingle "je" label
     addStmt stmt
@@ -156,6 +157,7 @@ addCondElse expr stmt1 stmt2 = do
     lFalse <- nextLabel
     lEnd <- nextLabel
     res <- addExpr expr
+    res <- tryMovl res "%eax"
     emitDouble "cmp" "$0" res
     emitSingle "je" lFalse
     addStmt stmt1
@@ -185,6 +187,7 @@ addWhile expr stmt =
             addStmt stmt
             addLabel lCond
             res <- addExpr expr
+            res <- tryMovl res "%eax"
             emitDouble "cmp" "$1" res
             emitSingle "je" lBody
 
@@ -254,6 +257,10 @@ addExpr expr =
         EElem_ ident expr -> do
             res <- addExpr expr
             emitElem ident res
+        ELength_ (Ident_ array) -> do
+            arrayAddress <- getVar array
+            regAddress <- tryMovl arrayAddress "%eax"
+            return $ "(" ++ regAddress ++ ")"
         ENull_ ident -> return $ "$0"
         EArrayNew_ expr -> do
             res <- addExpr expr
@@ -325,8 +332,8 @@ emitNewArray :: String -> CS String
 emitNewArray res = do
     let aux = "%ecx"
     res <- tryMovl res "%eax"
-    emitSingle "incl" res
     helper <- addHelper res
+    emitSingle "incl" res
     callCalloc res
     getHelperStrict helper aux
     emitDouble "movl" aux "(%eax)"
@@ -337,7 +344,7 @@ emitNew :: Ident_ -> CS String
 
 emitNew ident@(Ident_ ident_) = do
     (vMap, _) <- getClassTable ident
-    let size = 4 * ((length vMap) + 1)
+    let size = 1 + length vMap
         sizeConst = "$" ++ (show size)
         label = "$__" ++ ident_
     callCalloc sizeConst
@@ -412,8 +419,11 @@ emitRel op pos1 pos2 =
                 label <- nextLabel
                 let
                     switcher p1 p2 r1 r2 r3 =
-                        if (p1 == r1) || (p2 == r1)
-                            then if (p1 == r2) || (p2 == r2)
+                        let
+                            p1_ = extractReg p1
+                            p2_ = extractReg p2
+                        in if (p1_ == r1) || (p2_ == r1)
+                            then if (p1_ == r2) || (p2_ == r2)
                                 then r3
                                 else r2
                             else r1

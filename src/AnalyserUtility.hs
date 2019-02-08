@@ -296,13 +296,18 @@ placeHint pos type_ =
 placeHintType :: Maybe LineChar -> Type Pos -> AS ()
 
 placeHintType (Just pos) type_ =
+    placeHint pos (convertType type_)
+
+
+convertType :: Type Pos -> Type_
+
+convertType type_ =
     case type_ of
-        Int _ -> placeHint pos Int_
-        Bool _ -> placeHint pos Bool_
-        Str _ -> placeHint pos Str_
-        Class _ (Ident ident) ->
-            placeHint pos $ Class_ $ Ident_ ident
-        _ -> return ()
+        Int _ -> Int_
+        Bool _ -> Bool_
+        Str _ -> Str_
+        Class _ (Ident ident) -> Class_ $ Ident_ ident
+        Array _ type_ -> Array_ (convertType type_)
 
 
 singleQuotes :: Ident -> Bool

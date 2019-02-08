@@ -81,6 +81,7 @@ data Expr_
     | EApp_ Ident_ [Expr_]
     | EString_ String
     | EElem_ Ident_ Expr_
+    | ELength_ Ident_
     | ENull_ Ident_
     | EArrayNew_ Expr_
     | ENew_ Ident_

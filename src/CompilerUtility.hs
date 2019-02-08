@@ -176,7 +176,7 @@ addArg pos (Arg_ type_ (Ident_ ident)) = do
 clearArgs :: CS ()
 
 clearArgs = modify $ \s -> s {
-    outVars = M.empty,
+    outVars = M.insert "_index" "$0" M.empty,
     locVars = M.empty
     }
 
@@ -211,23 +211,38 @@ clearLoc =
 
 getVar :: String -> CS String
 
-getVar ident = do
-    loc <- gets $ M.lookup ident . locVars
-    case loc of
-        Just pos -> return pos
-        Nothing -> do
+getVar ident =
+    case ident of
+        "_index" -> do
             out <- gets $ M.lookup ident . outVars
             case out of
+                Just "$0" -> do
+                    pos <- addStack "_index"
+                    return pos
+                Just out -> return out
+        _ -> do
+            loc <- gets $ M.lookup ident . locVars
+            case loc of
                 Just pos -> return pos
                 Nothing -> do
-                    class_ <- gets curClass
-                    getAttribute class_ selfObject (Ident_ ident) "%eax"
+                    out <- gets $ M.lookup ident . outVars
+                    case out of
+                        Just pos -> return pos
+                        Nothing -> do
+                            class_ <- gets curClass
+                            getAttribute class_ selfObject (Ident_ ident) "%eax"
 
 
 addLocalVar :: String -> String -> CS ()
 
 addLocalVar ident pos =
     modify $ \s -> s { locVars = M.insert ident pos (locVars s) }
+
+
+addOuterVar :: String -> String -> CS ()
+
+addOuterVar ident pos =
+    modify $ \s -> s { outVars = M.insert ident pos (outVars s) }
 
 
 addHelper :: String -> CS String
@@ -254,14 +269,18 @@ getHelperStrict helper aux = do
 getHelper :: String -> String -> String -> String -> CS String
 
 getHelper helper res2 aux1 aux2 = do
+    let cont aux = do
+        strictMovl helper aux2
+        return aux2
+
     modify $ \s -> s { stackEnd = stackEnd s - 4 }
-    if res2 == aux1
-        then do
-            strictMovl helper aux2
-            return aux2
-        else do
-            strictMovl helper aux1
-            return aux1
+    if length res2 > 5
+        then if takeLast 6 res2 == aux1
+            then cont aux2
+            else cont aux1
+        else if res2 == aux1
+            then cont aux2
+            else cont aux1
 
 
 getClassTable :: Ident_ -> CS ClassTable
@@ -468,7 +487,9 @@ addStack ident = do
     modify $ \s -> s { maxStack = max (stackEnd s) (maxStack s) }
     offset <- gets stackEnd
     let pos = "-" ++ (show offset) ++ "(%ebp)"
-    addLocalVar ident pos
+    case ident of
+        "_index" -> addOuterVar ident pos
+        _ -> addLocalVar ident pos
     return pos
 
 
@@ -539,7 +560,7 @@ callCalloc :: String -> CS ()
 
 callCalloc res = do
     emitSingle "pushl" res
-    emitSingle "pushl" "$1"
+    emitSingle "pushl" "$4"
     emitSingle "call" "calloc"
     restoreEspLen 2
 
@@ -559,6 +580,14 @@ getArrayElem ident res taken = do
     emitDouble "movl" arrarAddress aux
     emitDouble "leal" ("4(" ++ aux ++ ", " ++ res ++ ", 4)") aux
     return $ "(" ++ aux ++ ")"
+
+
+extractReg :: String -> String
+
+extractReg pos =
+    if length pos > 5
+        then take 4 $ takeLast 5 pos
+        else pos
 
 
 takeLast :: Int -> [a] -> [a]

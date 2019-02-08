@@ -296,17 +296,14 @@ checkStmt st = case st of
         eType <- checkExpr expr
         index <- checkExpr index
         checkTypes index defaultInt $ msgArraySize pos
-        var <- findVar pos ident
-        case var of
-            Just (vPos, vType) ->
-                case vType of
-                    Array aPos aType ->
-                        checkTypes eType aType $ msgElementAssign ident pos aType vPos
-                    _ -> msgNotArray ident pos
-            Nothing ->
-                msgVarUndefined ident pos
-        return False
 
+        aType <- getArrayType pos ident
+        case aType of
+            Just aType ->
+                checkTypes eType aType $ msgElementAssign ident pos aType
+            Nothing -> return ()
+
+        return False
 
     AttrAss pos object attr expr -> do
         eType <- checkExpr expr
@@ -398,6 +395,19 @@ checkStmt st = case st of
             Just True ->
                 return True
             _ -> return ret
+
+    ForEach pos type_ element array stmt -> do
+        aType <- getArrayType pos array
+        case aType of
+            Just aType -> do
+                checkTypes (Just type_) aType $ msgForEachType array pos aType
+            Nothing -> return ()
+
+        let
+            declElement = Decl pos type_ [NoInit pos element]
+            block = BStmt pos (Block pos [declElement, stmt])
+            loop = While pos (ELitFalse pos) block
+        checkStmt loop
 
     SExp pos expr -> do
         checkExpr expr

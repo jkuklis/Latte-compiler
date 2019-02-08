@@ -1,5 +1,7 @@
 module TreeConverter where
 
+import System.IO
+
 import Control.Monad.State
 
 import qualified Data.Map as M
@@ -33,6 +35,7 @@ convert input typeHints = do
     let
         (Ok prog) = pProgram $ myLexer input
         prog_ = evalState (progConv prog) $ startState typeHints
+    -- hPutStrLn stderr $ show prog
     return prog_
 
 
@@ -356,6 +359,25 @@ stmtConv stmt =
                 ELitFalse_ -> return apps
                 _ -> return [While_ expr (singleStmt (concat [apps, stmt]))]
 
+
+        ForEach _ type_ element array stmt -> do
+            type_ <- typeConv type_
+            element <- identConv element
+            array <- identConv array
+            stmt <- stmtConv stmt
+            let
+                index = Ident_ "_index"
+                zeroIndex = Ass_ index $ ELitInt_ 0
+                arrayElem = EElem_ array (EVar_ index)
+                elemAssigment = Decl_ type_ [Init_ element arrayElem]
+                incIndex = Incr_ index
+                arrayLength = ELength_ array
+                cond = ERel_ (EVar_ index) LTH_ arrayLength
+                semiBlock = concat [[elemAssigment, incIndex], stmt]
+                loop = While_ cond (singleStmt semiBlock)
+
+            return [zeroIndex, loop]
+
         SExp _ expr -> do
             expr <- exprConv expr
             gatherApps expr
@@ -454,8 +476,13 @@ exprConv expr =
         EAttr pos object attr -> do
             object <- identConv object
             attr <- identConv attr
-            Class_ classIdent <- findHint pos
-            return $ EAttr_ classIdent object attr
+            hint <- tryFindHint pos
+            case hint of
+                Just (Class_ classIdent) ->
+                    return $ EAttr_ classIdent object attr
+                Nothing -> case attr of
+                    Ident_ "length" ->
+                        return $ ELength_ object
 
         EMethod pos object method exprs -> do
             object <- identConv object
@@ -720,3 +747,9 @@ findHint :: Maybe LineChar -> CS Type_
 findHint (Just pos) = do
     Just type_ <- gets $ M.lookup pos . typeHints
     return type_
+
+
+tryFindHint :: Maybe LineChar -> CS (Maybe Type_)
+
+tryFindHint (Just pos) = do
+    gets $ M.lookup pos . typeHints

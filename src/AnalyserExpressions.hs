@@ -61,18 +61,7 @@ checkExpr expr = case expr of
     EElem pos ident expr -> do
         eType <- checkExpr expr
         checkTypes eType defaultInt $ msgArraySize pos
-
-        var <- findVar pos ident
-        case var of
-            Just (vPos, vType) ->
-                case vType of
-                    Array aPos aType -> return $ Just aType
-                    _ -> do
-                        msgNotArray ident pos
-                        return Nothing
-            Nothing -> do
-                msgVarUndefined ident pos
-                return Nothing
+        getArrayType pos ident
 
     ENull pos ident -> checkExpr $ ENew pos ident
 
@@ -175,7 +164,7 @@ checkRel (ERel pos e1 op e2) =
                         _ -> return ()
                     checkTypes eType2 eType1 $ msgEqType pos eType1
 
-                Nothing ->
+                Nothing -> do
                     return ()
 
         NE oPos ->

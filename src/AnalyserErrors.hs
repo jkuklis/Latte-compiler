@@ -130,14 +130,13 @@ msgAssign (Ident ident) pos vType prevPos eType =
     ++ (posInfo "Defined" prevPos)
 
 
-msgElementAssign :: Ident -> Pos -> Type Pos -> Pos -> Type Pos -> AS ()
+msgElementAssign :: Ident -> Pos -> Type Pos -> Type Pos -> AS ()
 
-msgElementAssign (Ident ident) pos aType prevPos eType =
+msgElementAssign (Ident ident) pos aType eType =
     addError $ "Incorrect type in array " ++ ident ++ " element!\n"
     ++ (posInfo "Assignment" pos)
     ++ "Array element type: " ++ (showType aType)
     ++ ", expression type: " ++ (showType eType) ++ "\n"
-    ++ (posInfo "Array defined" prevPos)
 
 
 msgReturn :: Pos -> Type Pos -> AS ()
@@ -454,3 +453,12 @@ msgNotArray :: Ident -> Pos -> AS ()
 msgNotArray (Ident ident) pos =
     addError $ ident ++ "is not an array!\n"
     ++ (posInfo "Index accessed" pos)
+
+
+msgForEachType :: Ident -> Pos -> Type Pos -> Type Pos -> AS ()
+
+msgForEachType (Ident array) pos aType type_ =
+    addError $ "Array " ++ array
+    ++ "is of type " ++ (showType aType)
+    ++ ", not of type " ++ (showType type_) ++ "!\n"
+    ++ (posInfo "For each in" pos)

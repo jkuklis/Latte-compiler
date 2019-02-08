@@ -142,3 +142,20 @@ getClassMethod pos class_ method = do
                 _ -> return ()
         _ -> return ()
     return fun
+
+
+getArrayType :: Pos -> Ident -> AS (Maybe (Type Pos))
+
+getArrayType pos ident = do
+    var <- findVar pos ident
+    case var of
+        Just (vPos, vType) ->
+            case vType of
+                Array aPos aType ->
+                    return $ Just aType
+                _ -> do
+                    msgNotArray ident pos
+                    return Nothing
+        Nothing -> do
+            msgVarUndefined ident pos
+            return Nothing
