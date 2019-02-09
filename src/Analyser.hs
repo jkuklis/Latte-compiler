@@ -287,7 +287,7 @@ checkStmt st = case st of
         var <- findVar pos ident
         case var of
             Just (prevPos, vType) -> do
-                checkTypes eType vType $ msgAssign ident pos vType prevPos
+                checkTypesStrict eType vType $ msgAssign ident pos vType prevPos
             Nothing ->
                 msgVarUndeclared ident pos
         return False
@@ -295,12 +295,12 @@ checkStmt st = case st of
     ElemAss pos ident index expr -> do
         eType <- checkExpr expr
         index <- checkExpr index
-        checkTypes index defaultInt $ msgArraySize pos
+        checkTypesStrict index defaultInt $ msgArraySize pos
 
         aType <- getArrayType pos ident
         case aType of
             Just aType ->
-                checkTypes eType aType $ msgElementAssign ident pos aType
+                checkTypesStrict eType aType $ msgElementAssign ident pos aType
             Nothing -> return ()
 
         return False
@@ -312,7 +312,7 @@ checkStmt st = case st of
         case aType of
             Nothing -> return ()
             Just aType -> do
-                checkTypes eType aType $ msgAttrType pos object attr aType
+                checkTypesStrict eType aType $ msgAttrType pos object attr aType
 
         return False
 
@@ -327,7 +327,7 @@ checkStmt st = case st of
                 case aType of
                     Nothing -> return ()
                     Just aType -> do
-                        checkTypes eType aType $
+                        checkTypesStrict eType aType $
                             msgAttrType pos (Ident "self") attr aType
 
 
@@ -357,7 +357,7 @@ checkStmt st = case st of
                     return False
                 Just (eType) -> do
                     classes <- gets classMap
-                    if cmpTypes rType eType classes
+                    if cmpTypesStrict rType eType classes
                         then return True
                         else do
                             msgReturn pos eType
@@ -376,7 +376,7 @@ checkStmt st = case st of
 
     CondElse pos expr stmt1 stmt2 -> do
         eType <- checkExpr expr
-        checkTypes eType defaultBool $ msgCond pos
+        checkTypesStrict eType defaultBool $ msgCond pos
         ret1 <- checkStmt $ BStmt pos $ Block pos [stmt1]
         ret2 <- checkStmt $ BStmt pos $ Block pos [stmt2]
         constCond <- constantBool expr
@@ -400,7 +400,7 @@ checkStmt st = case st of
         aType <- getArrayType pos array
         case aType of
             Just aType -> do
-                checkTypes (Just type_) aType $ msgForEachType array pos aType
+                checkTypesStrict (Just type_) aType $ msgForEachType array pos aType
             Nothing -> return ()
 
         let
@@ -436,7 +436,7 @@ checkDecl _ [] =
 checkDecl dType (item:items) = case item of
     Init pos ident expr -> do
         eType <- checkExpr expr
-        checkTypes eType dType $ msgExpDecl ident pos dType
+        checkTypesStrict eType dType $ msgExpDecl ident pos dType
         checkDecl dType $ (NoInit pos ident) : items
 
     NoInit pos ident -> do

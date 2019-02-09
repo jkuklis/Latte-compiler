@@ -86,7 +86,7 @@ Void.      Type1 ::= "void" ;
 
 Class.     Type1 ::= Ident ;
 
-Array.     Type ::= Type1 "[" "]" ;
+Array.     Type ::= Type1 "[]" ;
 
 coercions  Type 1 ;
 

@@ -213,17 +213,25 @@ setCur ident =
     modify $ \s -> s { curFun = ident }
 
 
-cmpTypes :: Type Pos -> Type Pos -> ClassMap -> Bool
+cmpTypesLenient :: Type Pos -> Type Pos -> ClassMap -> Bool
 
-cmpTypes (Int pos1) (Int pos2) _ = True
-cmpTypes (Str pos1) (Str pos2) _ = True
-cmpTypes (Bool pos1) (Bool pos2) _ = True
-cmpTypes (Void pos1) (Void pos2) _ = True
-cmpTypes (Class pos1 ident1) (Class pos2 ident2) classes =
+cmpTypesLenient (Class pos1 ident1) (Class pos2 ident2) classes =
+    (subClass ident1 ident2 classes) ||(subClass ident2 ident1 classes)
+cmpTypesLenient type1 type2 classes =
+    cmpTypesStrict type1 type2 classes
+
+
+cmpTypesStrict :: Type Pos -> Type Pos -> ClassMap -> Bool
+
+cmpTypesStrict (Int pos1) (Int pos2) _ = True
+cmpTypesStrict (Str pos1) (Str pos2) _ = True
+cmpTypesStrict (Bool pos1) (Bool pos2) _ = True
+cmpTypesStrict (Void pos1) (Void pos2) _ = True
+cmpTypesStrict (Class pos1 ident1) (Class pos2 ident2) classes =
     subClass ident1 ident2 classes
-cmpTypes (Array pos1 type1) (Array pos2 type2) classes =
-    cmpTypes type1 type2 classes
-cmpTypes _ _ _ = False
+cmpTypesStrict (Array pos1 type1) (Array pos2 type2) classes =
+    cmpTypesStrict type1 type2 classes
+cmpTypesStrict _ _ _ = False
 
 
 subClass :: Ident -> Ident -> ClassMap -> Bool

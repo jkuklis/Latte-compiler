@@ -60,14 +60,14 @@ checkExpr expr = case expr of
 
     EElem pos ident expr -> do
         eType <- checkExpr expr
-        checkTypes eType defaultInt $ msgArraySize pos
+        checkTypesStrict eType defaultInt $ msgArraySize pos
         getArrayType pos ident
 
     ENull pos ident -> checkExpr $ ENew pos ident
 
     EArrayNew pos type_ expr -> do
         eType <- checkExpr expr
-        checkTypes eType defaultInt $ msgArraySize pos
+        checkTypesStrict eType defaultInt $ msgArraySize pos
         case type_ of
             Class cPos cIdent -> do
                 checkExpr $ ENew cPos cIdent
@@ -118,19 +118,19 @@ checkExpr expr = case expr of
 
     Neg pos expr -> do
         eType <- checkExpr expr
-        checkTypes eType defaultInt $ msgNeg pos
+        checkTypesStrict eType defaultInt $ msgNeg pos
         return $ Just $ Int pos
 
     Not pos expr -> do
         eType <- checkExpr expr
-        checkTypes eType defaultBool $ msgNot pos
+        checkTypesStrict eType defaultBool $ msgNot pos
         return $ Just $ Bool pos
 
     EMul pos e1 op e2 -> do
         eType1 <- checkExpr e1
         eType2 <- checkExpr e2
-        checkTypes eType1 defaultInt $ msgMul pos 1
-        checkTypes eType2 defaultInt $ msgMul pos 2
+        checkTypesStrict eType1 defaultInt $ msgMul pos 1
+        checkTypesStrict eType2 defaultInt $ msgMul pos 2
         return $ Just $ Int pos
 
     EAdd pos e1 op e2 ->
@@ -143,15 +143,15 @@ checkExpr expr = case expr of
     EAnd pos e1 e2 -> do
         eType1 <- checkExpr e1
         eType2 <- checkExpr e2
-        checkTypes eType1 defaultBool $ msgAnd pos 1
-        checkTypes eType2 defaultBool $ msgAnd pos 2
+        checkTypesStrict eType1 defaultBool $ msgAnd pos 1
+        checkTypesStrict eType2 defaultBool $ msgAnd pos 2
         return $ Just $ Bool pos
 
     EOr pos e1 e2 -> do
         eType1 <- checkExpr e1
         eType2 <- checkExpr e2
-        checkTypes eType1 defaultBool $ msgOr pos 1
-        checkTypes eType2 defaultBool $ msgOr pos 2
+        checkTypesStrict eType1 defaultBool $ msgOr pos 1
+        checkTypesStrict eType2 defaultBool $ msgOr pos 2
         return $ Just $ Bool pos
 
 
@@ -168,7 +168,7 @@ checkRel (ERel pos e1 op e2) =
                     case eType1 of
                         Void _ -> msgVoidComp oPos
                         _ -> return ()
-                    checkTypes eType2 eType1 $ msgEqType pos eType1
+                    checkTypesLenient eType2 eType1 $ msgEqType pos eType1
 
                 Nothing -> do
                     return ()
@@ -179,8 +179,8 @@ checkRel (ERel pos e1 op e2) =
         _ -> do
             eType1 <- checkExpr e1
             eType2 <- checkExpr e2
-            checkTypes eType1 defaultInt $ msgRelInt pos 1
-            checkTypes eType2 defaultInt $ msgRelInt pos 2
+            checkTypesStrict eType1 defaultInt $ msgRelInt pos 1
+            checkTypesStrict eType2 defaultInt $ msgRelInt pos 2
 
 
 checkAdd :: Expr Pos -> AS (Maybe (Type Pos))
@@ -240,8 +240,8 @@ checkAdd (EAdd pos e1 op e2) =
         Minus oPos -> do
             eType1 <- checkExpr e1
             eType2 <- checkExpr e2
-            checkTypes eType1 defaultInt $ msgMinus pos 1
-            checkTypes eType2 defaultInt $ msgMinus pos 2
+            checkTypesStrict eType1 defaultInt $ msgMinus pos 1
+            checkTypesStrict eType2 defaultInt $ msgMinus pos 2
             return $ Just $ Int pos
 
 
@@ -271,18 +271,35 @@ checkArgs ident pos [] exprs = do
 
 checkArgs ident pos ((Arg _ aType aIdent):args) (expr:exprs) = do
     eType <- checkExpr expr
-    checkTypes eType aType $ msgArgType pos ident aIdent aType
+    checkTypesStrict eType aType $ msgArgType pos ident aIdent aType
     checkArgs ident pos args exprs
 
 
-checkTypes :: Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS ()) -> AS ()
+checkTypes :: Bool -> Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS()) -> AS ()
 
-checkTypes eType dType action = case eType of
-    Nothing ->
-        return ()
-    Just (eType) -> do
-        classes <- gets classMap
-        when (not (cmpTypes dType eType classes)) $ action eType
+checkTypes lenient eType dType action =
+    case eType of
+        Nothing ->
+            return ()
+        Just (eType) -> do
+            let
+                comparator = if lenient
+                    then cmpTypesLenient
+                    else cmpTypesStrict
+            classes <- gets classMap
+            when (not (comparator dType eType classes)) $ action eType
+
+
+checkTypesLenient :: Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS ()) -> AS ()
+
+checkTypesLenient eType dType action =
+    checkTypes True eType dType action
+
+
+checkTypesStrict :: Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS ()) -> AS ()
+
+checkTypesStrict eType dType action =
+    checkTypes False eType dType action
 
 
 constantBool :: Expr Pos -> AS (Maybe Bool)
