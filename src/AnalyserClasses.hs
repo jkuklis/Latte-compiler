@@ -144,6 +144,75 @@ getClassMethod pos class_ method = do
     return fun
 
 
+checkVirtualMethod :: Pos -> Type Pos -> Ident -> [Arg Pos] -> AS ()
+
+checkVirtualMethod pos type_ ident args = do
+    class_ <- gets curClass
+    proto <- tryGetClassProto pos class_
+    case proto of
+        Just (_, _, _, extended) -> checkVMTypes pos type_ ident args extended
+        Nothing -> return ()
+
+
+checkVMTypes :: Pos -> Type Pos -> Ident -> [Arg Pos] -> Maybe Ident -> AS ()
+
+checkVMTypes pos type_ ident args extended = do
+    extProto <- tryGetClassProto pos extended
+    case extProto of
+        Just (_, fMap, _, extended) -> do
+            let extMethod = M.lookup ident fMap
+            case extMethod of
+                Just (ePos, eType, eArgs) -> do
+                    checkTypesStrict (Just eType) type_
+                        $ msgVMRetType pos ePos ident type_
+                    checkVMArgs pos ePos ident args eArgs
+                Nothing -> return ()
+            checkVMTypes pos type_ ident args extended
+        Nothing -> return ()
+
+
+checkVMArgs :: Pos -> Pos -> Ident -> [Arg Pos] -> [Arg Pos] -> AS ()
+
+checkVMArgs _ _ _ [] [] = return ()
+
+checkVMArgs pos ePos ident args [] =
+    msgVMTooManyArgs pos ePos ident args
+
+checkVMArgs pos ePos ident [] eArgs =
+    msgVMTooFewArgs pos ePos ident eArgs
+
+checkVMArgs pos ePos ident ((Arg aPos aType aIdent):args) ((Arg _ eType _):eArgs) = do
+    checkTypesStrict (Just eType) aType $ msgVMArgType pos ePos ident aIdent aType
+    checkVMArgs pos ePos ident args eArgs
+
+
+checkTypes :: Bool -> Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS()) -> AS ()
+
+checkTypes lenient eType dType action =
+    case eType of
+        Nothing ->
+            return ()
+        Just (eType) -> do
+            let
+                comparator = if lenient
+                    then cmpTypesLenient
+                    else cmpTypesStrict
+            classes <- gets classMap
+            when (not (comparator dType eType classes)) $ action eType
+
+
+checkTypesLenient :: Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS ()) -> AS ()
+
+checkTypesLenient eType dType action =
+    checkTypes True eType dType action
+
+
+checkTypesStrict :: Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS ()) -> AS ()
+
+checkTypesStrict eType dType action =
+    checkTypes False eType dType action
+
+
 getArrayType :: Pos -> Ident -> AS (Maybe (Type Pos))
 
 getArrayType pos ident = do

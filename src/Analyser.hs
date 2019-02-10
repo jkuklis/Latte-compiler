@@ -211,6 +211,7 @@ checkClassMembers ((ClAttr pos type_ ident):members) =
     checkClassMembers members
 
 checkClassMembers ((ClFun pos type_ ident args block):members) = do
+    checkVirtualMethod pos type_ ident args
     checkDefinitions [FnDef pos type_ ident args block]
     checkClassMembers members
 

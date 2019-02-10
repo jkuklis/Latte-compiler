@@ -275,33 +275,6 @@ checkArgs ident pos ((Arg _ aType aIdent):args) (expr:exprs) = do
     checkArgs ident pos args exprs
 
 
-checkTypes :: Bool -> Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS()) -> AS ()
-
-checkTypes lenient eType dType action =
-    case eType of
-        Nothing ->
-            return ()
-        Just (eType) -> do
-            let
-                comparator = if lenient
-                    then cmpTypesLenient
-                    else cmpTypesStrict
-            classes <- gets classMap
-            when (not (comparator dType eType classes)) $ action eType
-
-
-checkTypesLenient :: Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS ()) -> AS ()
-
-checkTypesLenient eType dType action =
-    checkTypes True eType dType action
-
-
-checkTypesStrict :: Maybe (Type Pos) -> Type Pos -> (Type Pos -> AS ()) -> AS ()
-
-checkTypesStrict eType dType action =
-    checkTypes False eType dType action
-
-
 constantBool :: Expr Pos -> AS (Maybe Bool)
 
 constantBool expr = case expr of

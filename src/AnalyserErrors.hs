@@ -461,4 +461,43 @@ msgForEachType (Ident array) pos aType type_ =
     addError $ "Array " ++ array
     ++ "is of type " ++ (showType aType)
     ++ ", not of type " ++ (showType type_) ++ "!\n"
-    ++ (posInfo "For each in" pos)
+    ++ (posInfo "For each" pos)
+
+
+msgVMRetType :: Pos -> Pos -> Ident -> Type Pos -> Type Pos -> AS ()
+
+msgVMRetType pos ePos (Ident ident) type_ eType =
+    addError $ "Wrong return type for virtual method " ++ ident ++ "!\n"
+    ++ "Expected: " ++ (showType eType)
+    ++ ", got: " ++ (showType type_) ++ "!\n"
+    ++ (posInfo "Defined" pos)
+    ++ (posInfo "Previously defined" ePos)
+
+
+msgVMTooManyArgs :: Pos -> Pos -> Ident -> [Arg Pos] -> AS ()
+
+msgVMTooManyArgs pos ePos (Ident ident) args =
+    addError $ "Too many arguments for virtual method " ++ ident ++ "!\n"
+    ++ "Expected " ++ (show (length args)) ++ " less!\n"
+    ++ (posInfo "Defined" pos)
+    ++ (posInfo "Previously defined" ePos)
+
+
+msgVMTooFewArgs :: Pos -> Pos -> Ident -> [Arg Pos] -> AS ()
+
+msgVMTooFewArgs pos ePos (Ident ident) args =
+    addError $ "Too few arguments for virtual method " ++ ident ++ "!\n"
+    ++ "Expected " ++ (show (length args)) ++ " more!\n"
+    ++ (posInfo "Defined" pos)
+    ++ (posInfo "Previously defined" ePos)
+
+
+msgVMArgType :: Pos -> Pos -> Ident -> Ident -> Type Pos -> Type Pos -> AS ()
+
+msgVMArgType pos ePos (Ident mIdent) (Ident aIdent) aType eType =
+    addError $ "Mismatched type for paramater " ++ aIdent
+    ++ " for virtual method " ++ mIdent ++ "!\n"
+    ++ "Expected: " ++ (showType eType)
+    ++ ", got: " ++ (showType aType) ++ "\n"
+    ++ (posInfo "Defined" pos)
+    ++ (posInfo "Previously defined" ePos)
