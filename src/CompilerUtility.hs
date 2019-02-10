@@ -365,9 +365,13 @@ getMethod :: Ident_ -> String -> Ident_ -> CS String
 
 getMethod class_ object method = do
     offset <- findMethodOffset class_ method
-    objectAddress <- tryMovl object "%eax"
-    tableAddress <- tryMovl "(%eax)" "%eax"
-    let funLoc = "*" ++ (show offset) ++ "(%eax)"
+    let aux = case extractReg object of
+            "%eax" -> "%ecx"
+            _ -> "%eax"
+        memAux =  "(" ++ aux ++ ")"
+    strictMovl object aux
+    strictMovl memAux aux
+    let funLoc = "*" ++ (show offset) ++ memAux
     return funLoc
 
 
