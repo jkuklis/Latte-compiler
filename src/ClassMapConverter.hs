@@ -12,7 +12,9 @@ import AbstractTree
 
 type MMap = [(Ident_, Ident_)]
 
-type VMap = [(Ident_, Ident_)]
+type AttrProto = (Ident_, Ident_, Type_)
+
+type VMap = [AttrProto]
 
 type ClassTable = (VMap, MMap)
 
@@ -93,8 +95,8 @@ trySwap class_ ident1 (f@(_, ident2) : mMap) =
 
 addAttribute :: Ident_ -> Ident -> VarProto -> VMap -> VMap
 
-addAttribute class_ attr _ vMap =
-    (class_, (idChange attr)) : vMap
+addAttribute class_ attr (_, type_) vMap =
+    (class_, idChange attr, convertType type_) : vMap
 
 
 addMethod :: Ident_ -> Ident -> FunProto -> MMap -> MMap

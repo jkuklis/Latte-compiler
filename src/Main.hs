@@ -17,7 +17,7 @@ main = do
     if not continue
         then exitFailure
         else do
-            -- hPutStrLn stderr $ show convertedClassMap
+            hPutStrLn stderr $ show convertedClassMap
             -- hPutStrLn stderr $ show typeHints
 
             prog <- convert input typeHints

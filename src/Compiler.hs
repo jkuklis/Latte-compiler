@@ -204,15 +204,11 @@ addDecl type_ item =
         NoInit_ (Ident_ ident) -> do
             pos <- addStack ident
             case type_ of
-                Str_ -> do
-                    res <- addToHeap ""
-                    emitDouble "movl" ("$" ++ res) pos
+                Str_ -> emitDouble "movl" emptyStringLabel pos
                 Int_ -> emitDouble "movl" "$0" pos
                 Bool_ -> emitDouble "movl" "$0" pos
-                Class_ classIdent ->
-                    emitDouble "movl" "$0" pos
-                Array_ type_ ->
-                    emitDouble "movl" "$0" pos
+                Class_ classIdent -> emitDouble "movl" "$0" pos
+                Array_ type_ -> emitDouble "movl" "$0" pos
 
         Init_ (Ident_ ident) expr -> do
             res <- addExpr expr
@@ -251,9 +247,12 @@ addExpr expr =
             emitSingle "call" fIdent
             restoreEsp exprs
             return "%eax"
-        EString_ str -> do
-            res <- addToHeap str
-            return $ "$" ++ res
+        EString_ str ->
+            case str of
+                "" -> return emptyStringLabel
+                _ -> do
+                    res <- addToHeap str
+                    return $ "$" ++ res
         EElem_ ident expr -> do
             res <- addExpr expr
             emitElem ident res
@@ -262,9 +261,9 @@ addExpr expr =
             regAddress <- tryMovl arrayAddress "%eax"
             return $ "(" ++ regAddress ++ ")"
         ENull_ ident -> return $ "$0"
-        EArrayNew_ expr -> do
+        EArrayNew_ type_ expr -> do
             res <- addExpr expr
-            emitNewArray res
+            emitNewArray type_ res
         ENew_ ident -> emitNew ident
         EASelf_ (Ident_ attr) -> getVar attr
         EMSelf_ method exprs -> do
@@ -327,16 +326,29 @@ emitElem (Ident_ ident) res = do
     getArrayElem ident res notRealReg
 
 
-emitNewArray :: String -> CS String
+emitNewArray :: Type_ -> String -> CS String
 
-emitNewArray res = do
-    let aux = "%ecx"
+emitNewArray type_ res = do
     res <- tryMovl res "%eax"
     helper <- addHelper res
     emitSingle "incl" res
     callCalloc res
-    getHelperStrict helper aux
-    emitDouble "movl" aux "(%eax)"
+    getHelperStrict helper "%ecx"
+    emitDouble "movl" "%ecx" "(%eax)"
+    case type_ of
+        Str_ -> do
+            let addressAux = "%edx"
+            lBody <- nextLabel
+            lCond <- nextLabel
+            emitSingle "jmp" lCond
+            addLabel lBody
+            emitDouble "leal" "(%eax, %ecx, 4)" "%edx"
+            emitDouble "movl" emptyStringLabel "(%edx)"
+            emitSingle "decl" "%ecx"
+            addLabel lCond
+            emitDouble "cmp" "$0" "%ecx"
+            emitSingle "jg" lBody
+        _ -> return ()
     return "%eax"
 
 
@@ -349,6 +361,7 @@ emitNew ident@(Ident_ ident_) = do
         label = "$__" ++ ident_
     callCalloc sizeConst
     emitDouble "movl" label "(%eax)"
+    initStringAttributes vMap
     return "%eax"
 
 

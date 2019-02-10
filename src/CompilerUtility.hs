@@ -48,6 +48,8 @@ frame = "%esp"
 
 selfObject = "8(%ebp)"
 
+emptyStringLabel = "$.LC0"
+
 notRealReg = "notRealReg"
 
 
@@ -55,7 +57,7 @@ startState :: ConvClassMap -> CompilerState
 
 startState classMap = CompilerState {
     code = [],
-    heap = [".section .rodata"],
+    heap = ["\t.string \"\"", ".LC0:", ".section .rodata"],
     funProlog = [],
     funCode = [],
     locVars = M.empty,
@@ -66,7 +68,7 @@ startState classMap = CompilerState {
     stackEnd = 0,
     maxStack = 0,
     labelsCount = 0,
-    stringsCount = 0,
+    stringsCount = 1,
     onStackAddressOffset = []
     }
 
@@ -307,7 +309,8 @@ findAttrOffset :: Ident_ -> Ident_ -> CS Integer
 
 findAttrOffset class_ (Ident_ attr) = do
     (vMap, _) <- getClassTable class_
-    let offset = findAttr vMap 0 (-1) attr
+    let defaultMax = -1
+        offset = findAttr vMap 0 defaultMax attr
     return $ 4 * (offset + 1)
 
 
@@ -315,7 +318,7 @@ findAttr :: VMap -> Integer -> Integer -> String -> Integer
 
 findAttr [] which max_ attr = max_
 
-findAttr ((_, (Ident_ clAttr)):vMap) which max_ attr =
+findAttr ((_, Ident_ clAttr, _):vMap) which max_ attr =
     if clAttr == attr
         then findAttr vMap (which + 1) which attr
         else findAttr vMap (which + 1) max_ attr
@@ -360,6 +363,22 @@ getMethod class_ object method = do
     tableAddress <- tryMovl "(%eax)" "%eax"
     let funLoc = "*" ++ (show offset) ++ "(%eax)"
     return funLoc
+
+
+initStringAttributes :: VMap -> CS ()
+
+initStringAttributes vMap =
+    foldM_ initStringAttr 4 vMap
+
+
+initStringAttr :: Integer -> AttrProto -> CS Integer
+
+initStringAttr offset (_, _, Str_) = do
+    emitDouble "movl" emptyStringLabel (show offset ++ "(%eax)")
+    return $ offset + 4
+
+initStringAttr offset _ =
+    return $ offset + 4
 
 
 restoreEsp :: [Expr_] -> CS ()

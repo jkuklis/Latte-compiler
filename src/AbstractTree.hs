@@ -83,7 +83,7 @@ data Expr_
     | EElem_ Ident_ Expr_
     | ELength_ Ident_
     | ENull_ Ident_
-    | EArrayNew_ Expr_
+    | EArrayNew_ Type_ Expr_
     | ENew_ Ident_
     | EASelf_ Ident_
     | EMSelf_ Ident_ [Expr_]

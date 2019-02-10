@@ -246,7 +246,7 @@ extractApps expr =
         EString_ _ -> []
         EElem_ _ _ -> []
         ENull_ _ -> []
-        EArrayNew_ _ -> []
+        EArrayNew_ _ _ -> []
         ENew_ _ -> []
         EASelf_ _ -> []
         EMSelf_ _ _ -> [SExp_ expr]
@@ -456,9 +456,10 @@ exprConv expr =
             ident <- identConv ident
             return $ ENull_ ident
 
-        EArrayNew _ _ expr -> do
+        EArrayNew _ type_ expr -> do
+            type_ <- typeConv type_
             expr <- exprConv expr
-            return $ EArrayNew_ expr
+            return $ EArrayNew_ type_ expr
 
         ENew _ ident -> do
             ident <- identConv ident
