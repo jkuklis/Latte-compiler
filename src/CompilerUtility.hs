@@ -50,6 +50,7 @@ selfObject = "8(%ebp)"
 
 emptyStringLabel = "$.LC0"
 
+defaultReg = "%eax"
 notRealReg = "notRealReg"
 
 
@@ -213,9 +214,9 @@ clearLoc =
     modify $ \s -> s { locVars = M.empty }
 
 
-getVar :: String -> CS String
+getVarWithTaken :: String -> String -> CS String
 
-getVar ident =
+getVarWithTaken ident taken =
     case ident of
         "_index" -> do
             out <- gets $ M.lookup ident . outVars
@@ -234,7 +235,12 @@ getVar ident =
                         Just pos -> return pos
                         Nothing -> do
                             class_ <- gets curClass
-                            getAttribute class_ selfObject (Ident_ ident) "%eax"
+                            getAttribute class_ selfObject (Ident_ ident) taken
+
+
+getVar :: String -> CS String
+
+getVar ident = getVarWithTaken ident notRealReg
 
 
 addLocalVar :: String -> String -> CS ()

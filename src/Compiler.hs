@@ -537,7 +537,7 @@ addAss :: Ident_ -> Expr_ -> CS ()
 
 addAss (Ident_ ident) expr = do
     res <- addExpr expr
-    var <- getVar ident
+    var <- getVarWithTaken ident res
     transferValues res var
 
 
@@ -562,7 +562,7 @@ addAttrAss :: Ident_ -> Ident_ -> Ident_ -> Expr_ -> CS ()
 
 addAttrAss class_ (Ident_ object) attr expr = do
     res <- addExpr expr
-    obj <- getVar object
+    obj <- getVarWithTaken object res
     att <- getAttribute class_ obj attr res
     transferValues res att
 
