@@ -228,8 +228,9 @@ addDecl type_ item =
 addExpr :: Expr_ -> CS String
 
 addExpr expr =
-    let methodCont class_ obj method exprs = do
+    let methodCont class_ object method exprs = do
         pushArgs $ reverse exprs
+        obj <- getVar object
         met <- getMethod class_ obj method
         emitSingle "pushl" obj
         emitSingle "call" met
@@ -273,9 +274,8 @@ addExpr expr =
         EAttr_ class_ (Ident_ object) attr -> do
             obj <- getVar object
             getAttribute class_ obj attr "%eax"
-        EMethod_ class_ (Ident_ object) method exprs -> do
-            obj <- getVar object
-            methodCont class_ obj method exprs
+        EMethod_ class_ (Ident_ object) method exprs ->
+            methodCont class_ object method exprs
         Neg_ expr -> do
             res <- addExpr expr
             emitNeg res
@@ -595,7 +595,7 @@ selfIncr :: Ident_ -> Integer -> CS ()
 
 selfIncr (Ident_ ident) int = do
     class_ <- gets curClass
-    attr <- getAttribute class_ selfObject (Ident_ ident) "%eax"
+    attr <- getAttribute class_ selfObject (Ident_ ident) notRealReg
     let instr = if int == 1
         then "incl"
         else "decl"
