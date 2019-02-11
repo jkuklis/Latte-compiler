@@ -234,8 +234,7 @@ addExpr expr =
         met <- getMethod class_ obj method
         emitSingle "pushl" obj
         emitSingle "call" met
-        restoreEspLen 1
-        restoreEsp exprs
+        restoreEspLen $ toInteger $ 1 + length exprs
         return "%eax"
 
     in case expr of
@@ -273,7 +272,7 @@ addExpr expr =
             methodCont class_ obj method exprs
         EAttr_ class_ (Ident_ object) attr -> do
             obj <- getVar object
-            getAttribute class_ obj attr "%eax"
+            getAttribute class_ obj attr notRealReg
         EMethod_ class_ (Ident_ object) method exprs ->
             methodCont class_ object method exprs
         Neg_ expr -> do

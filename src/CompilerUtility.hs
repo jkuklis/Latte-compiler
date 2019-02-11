@@ -336,7 +336,7 @@ getAttribute class_ object attr res = do
     offset <- findAttrOffset class_ attr
     let
         attrReg =
-            case res of
+            case extractReg res of
                 "%eax" -> "%ecx"
                 _ -> "%eax"
 
@@ -587,8 +587,7 @@ transferValues res var =
                 emitDouble "movl" res var
             (_, _) -> do
                 let
-                    extrVar = extractReg var
-                    tmp = case extrVar of
+                    tmp = case extractReg var of
                         "%eax" -> "%ecx"
                         _ -> "%eax"
                 emitDouble "movl" res tmp
