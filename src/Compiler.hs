@@ -229,10 +229,8 @@ addExpr :: Expr_ -> CS String
 
 addExpr expr =
     let methodCont class_ object method exprs = do
-        pushArgs $ reverse exprs
-        obj <- getVar object
-        met <- getMethod class_ obj method
-        emitSingle "pushl" obj
+        met <- getMethod class_ object method
+        emitSingle "pushl" object
         emitSingle "call" met
         restoreEspLen $ toInteger $ 1 + length exprs
         return "%eax"
@@ -267,13 +265,16 @@ addExpr expr =
         ENew_ ident -> emitNew ident
         EASelf_ (Ident_ attr) -> getVar attr
         EMSelf_ method exprs -> do
+            pushArgs $ reverse exprs
             class_ <- gets curClass
-            let obj = selfObject
-            methodCont class_ obj method exprs
+            let object = selfObject
+            methodCont class_ object method exprs
         EAttr_ class_ (Ident_ object) attr -> do
             obj <- getVar object
             getAttribute class_ obj attr notRealReg
-        EMethod_ class_ (Ident_ object) method exprs ->
+        EMethod_ class_ (Ident_ object) method exprs -> do
+            pushArgs $ reverse exprs
+            object <- getVar object
             methodCont class_ object method exprs
         Neg_ expr -> do
             res <- addExpr expr
